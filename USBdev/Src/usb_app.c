@@ -26,6 +26,7 @@
 #include "usb_hw_if.h"
 #include "usb_desc_gen.h"
 #include "usb_log.h"
+#include "usb_app.h"
 
 #include "usbdev_binding.h"
 
@@ -162,7 +163,7 @@ static bool signon_rq[USBD_CDC_CHANNELS], prompt_rq;
 #endif
 
 // called from SysTick at 1 kHz
-void usbdev_timing(void)
+void usbdev_tick(void)
 {
 #if USBD_CDC_CHANNELS
 	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
@@ -574,6 +575,7 @@ const struct usbdevice_ usbdev = {
 	.devdata = &uddata,
 	.outep = out_epdata,
 	.inep = in_epdata,
+	.SOF_Handler = usbdev_tick,
 	.cdc_service = &cdc_service,
 	.cdc_data = cdc_data
 };

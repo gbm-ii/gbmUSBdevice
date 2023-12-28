@@ -258,7 +258,7 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 	usb->EPR[0] = USB_EPR_EPTYPE(0) | USB_EPR_STATRX(USB_EPSTATE_VALID) | USB_EPR_STATTX(USB_EPSTATE_NAK);
     usb->ISTR = 0;
     usb->DADDR = USB_DADDR_EF;
-    usb->CNTR = USB_CNTR_CTRM | USB_CNTR_RESETM | USB_CNTR_SUSPM;
+    usb->CNTR = USB_CNTR_CTRM | USB_CNTR_RESETM | USB_CNTR_SUSPM | USB_CNTR_SOFM;
 }
 
 // setup and enable app endpoints on set configuration request
@@ -454,7 +454,8 @@ void USBhw_IRQHandler(const struct usbdevice_ *usbd)
     if (istr & USB_ISTR_SOF)
 	{
         usb->ISTR = ~USB_ISTR_SOF;
-		// callback?
+        if (usbd->SOF_Handler)
+        	usbd->SOF_Handler();
     }
 }
 // =======================================================================

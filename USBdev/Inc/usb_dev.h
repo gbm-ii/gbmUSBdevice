@@ -115,6 +115,7 @@ struct usbdevice_ {
 	struct usbdevdata_ *devdata;
 	struct epdata_ *outep;
 	struct epdata_ *inep;
+	void (*SOF_Handler)(void);
 #if USBD_CDC_CHANNELS
 	struct cdc_services_ *cdc_service;
 	struct cdc_data_ *cdc_data;

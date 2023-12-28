@@ -20,7 +20,6 @@
 #if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4R5xx) || defined(STM32F401xC)
 
 #if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4R5xx)
-#include "stm32l4xx.h"
 #ifndef STM32L4
 #define STM32L4
 #endif
@@ -100,7 +99,7 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
 	usbdp->DCFG |= 3 << USB_OTG_DCFG_DSPD_Pos;	// Full speed (PERSCHIVL?)
 
 	usbg->GINTMSK = USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM
-		| USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM;
+		| USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM | USB_OTG_GINTMSK_SOFM;
 
 	usbdp->DCTL = 0;	// clear disconnect
 
@@ -242,7 +241,7 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 	OutEP[0].DOEPCTL = USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_SNAK | ep0size;
 
 	// enable ints
-	usbg->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM | USB_OTG_GINTMSK_IEPINT | USB_OTG_GINTMSK_OEPINT;
+	usbg->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM | USB_OTG_GINTMSK_IEPINT | USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_SOFM;
 }
 
 static void USBhw_EnumDone(const struct usbdevice_ *usbd)
@@ -457,9 +456,17 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         USBhw_EnumDone(usbd);
     	usbg->GINTSTS = USB_OTG_GINTSTS_ENUMDNE;
     }
+    if (gintsts & USB_OTG_GINTSTS_SOF)
+	{
+        if (usbd->SOF_Handler)
+        	usbd->SOF_Handler();
+    	usbg->GINTSTS = USB_OTG_GINTSTS_SOF;
+    }
     if (gintsts & (USB_OTG_GINTSTS_WKUINT | USB_OTG_GINTSTS_USBSUSP))
+    {
     	usbg->GINTSTS = USB_OTG_GINTSTS_WKUINT | USB_OTG_GINTSTS_USBSUSP;
-    if (gintsts & USB_OTG_GINTSTS_RXFLVL)	// fails on F411 if replaced by while()
+    }
+    if (gintsts & USB_OTG_GINTSTS_RXFLVL)	// Out FIFO; fails on F411 if replaced by while()
     {
     	//USB_OTG_DeviceTypeDef *usbdp = &usb->Device;
     	uint32_t sts = usbg->GRXSTSP;
