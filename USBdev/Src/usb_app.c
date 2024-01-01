@@ -31,7 +31,7 @@
 #include "usbdev_binding.h"
 
 #define SIGNON_DELAY	50u
-#define SIGNON	"\r\nVCOM0 started\r\n"
+#define SIGNON0	"\r\nVCOM0 started\r\n"
 #define SIGNON1	"\r\nVCOM1 started\r\n"
 #define PROMPT	">"
 
@@ -73,23 +73,43 @@ static struct epdata_ out_epdata[USBD_NUM_EPPAIRS] = {
 static struct epdata_ in_epdata[USBD_NUM_EPPAIRS]; // no need to init
 //========================================================================
 
-const uint8_t cdc_tx_irqn[USBD_CDC_CHANNELS] = {VCOM0_tx_IRQn,
+struct vcomcfg_ {
+	uint8_t rx_irqn, tx_irqn;
+	uint8_t out_epn, in_epn;
+	const char *signon, *prompt;
+};
+
+const struct vcomcfg_ vcomcfg[USBD_CDC_CHANNELS] = {
+	{VCOM0_rx_IRQn, VCOM0_tx_IRQn, CDC0_DATA_OUT_EP, CDC0_DATA_IN_EP, SIGNON0, ">"},
 #if USBD_CDC_CHANNELS > 1
-	VCOM1_tx_IRQn
+	{VCOM1_rx_IRQn, VCOM1_tx_IRQn, CDC1_DATA_OUT_EP, CDC1_DATA_IN_EP, SIGNON1},
 #endif
 };
 
 // put character into sendbuf, generate send packet request event
 void vcom_putchar(uint8_t ch, char c)
 {
-	struct cdc_data_ *cdp = &cdc_data[ch];
+	if (ch < USBD_CDC_CHANNELS)
+	{
+		struct cdc_data_ *cdp = &cdc_data[ch];
 
-	while (cdp->TxLength == CDC_DATA_EP_SIZE);	// buffer full -> wait
+		while (cdp->connected && cdp->TxLength == CDC_DATA_EP_SIZE);	// buffer full -> wait
 
-	__disable_irq();
-	cdp->TxData[cdp->TxBuf][cdp->TxLength++] = c;
-	__enable_irq();
-	NVIC_SetPendingIRQ(cdc_tx_irqn[ch]);
+		if (cdp->connected)
+		{
+			__disable_irq();
+			cdp->TxData[cdp->TxBuf][cdp->TxLength++] = c;
+			__enable_irq();
+			NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);
+		}
+	}
+}
+
+void vcom_putstring(uint8_t ch, const char *s)
+{
+	if (ch < USBD_CDC_CHANNELS && s)
+		while (*s)
+			vcom_putchar(ch, *s++);
 }
 
 void vcom0_putc(uint8_t c)
@@ -99,8 +119,7 @@ void vcom0_putc(uint8_t c)
 
 void vcom0_putstring(const char *s)
 {
-	while (*s)
-		vcom0_putc(*s++);
+	vcom_putstring(0, s);
 }
 
 void vcom1_putc(uint8_t c)
@@ -110,14 +129,13 @@ void vcom1_putc(uint8_t c)
 
 void vcom1_putstring(const char *s)
 {
-	while (*s)
-		vcom1_putc(*s++);
+	vcom_putstring(1, s);
 }
 
 // return 1 if prompt requested
-__attribute__ ((weak)) bool process_input(uint8_t c)
+__attribute__ ((weak)) bool process_input(uint8_t ch, uint8_t c)
 {
-	vcom0_putc(c);
+	vcom_putchar(ch, c);
 	return 0;
 }
 
@@ -138,88 +156,83 @@ void PRN_rx_IRQHandler(void)
 	{
 		uint8_t *rxptr = prnRxData; //
 		for (uint8_t i = 0; i < prnRxLen; i++)
-			process_input(*rxptr++);
+			process_input(0, *rxptr++);	// same handling as vcom0
 		prnRxLen = 0;
 		allow_rx(PRN_DATA_OUT_EP);
 	}
 }
 #endif
 
-#if USBD_CDC_CHANNELS
-const uint8_t cdc_rx_irqn[USBD_CDC_CHANNELS] = {VCOM0_rx_IRQn
-#if USBD_CDC_CHANNELS > 1
-		, VCOM1_rx_IRQn
-#endif
-};
-
-void cdc_LineStateHandler(const struct usbdevice_ *usbd, uint8_t idx)
+void cdc_LineStateHandler(const struct usbdevice_ *usbd, uint8_t ch)
 {
-	// overwrites the default handler in usb_class.c
-	NVIC_SetPendingIRQ(cdc_rx_irqn[idx]);
+	// called from USB interrupt, overwrites the default handler in usb_class.c
+	if ((cdc_data[ch].ControlLineState & (CDC_CTL_DTR | CDC_CTL_RTS)) == (CDC_CTL_DTR | CDC_CTL_RTS))
+	{
+		cdc_data[ch].connstart_timer = SIGNON_DELAY;	// display prompt after 50 ms
+	}
+	else
+	{
+		//NVIC_DisableIRQ(VCOM0_tx_IRQn);
+		// should reset the state
+		cdc_data[ch].connstart_timer = 0;	// possible hazard w USB interrupt
+		cdc_data[ch].connected = 0;
+	}
+	cdc_data[ch].ControlLineStateChanged = 0;
 }
 
-static uint8_t signon_delay_timer[USBD_CDC_CHANNELS];
-static bool signon_rq[USBD_CDC_CHANNELS], prompt_rq;
-#endif
-
-// called from SysTick at 1 kHz
+// called from USB interrupt at 1 kHz (SOF)
 void usbdev_tick(void)
 {
 #if USBD_CDC_CHANNELS
 	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
-		if (signon_delay_timer[ch] && --signon_delay_timer[ch] == 0)
+		if (cdc_data[ch].connstart_timer && --cdc_data[ch].connstart_timer == 0)
 		{
-			signon_rq[ch] = 1;
-			NVIC_SetPendingIRQ(cdc_rx_irqn[ch]);
+			cdc_data[ch].connected = 1;
+			cdc_data[ch].signon_rq = 1;
+			NVIC_SetPendingIRQ(vcomcfg[ch].rx_irqn);
+			NVIC_EnableIRQ(vcomcfg[ch].tx_irqn);
 		}
 #endif
 }
 
 // data reception and state change handler, priority lower than USB hw interrupt
-void VCOM0_rx_IRQHandler(void)
+void VCOM_rx_IRQHandler(uint8_t ch)
 {
-	if (cdc_data[0].LineCodingChanged)
+	bool prompt_rq = 0;
+
+	if (cdc_data[ch].LineCodingChanged)
 	{
-		cdc_data[0].LineCodingChanged = 0;
+		cdc_data[ch].LineCodingChanged = 0;
 		// if needed, handle here
 	}
-	if (cdc_data[0].ControlLineStateChanged)
+	if (cdc_data[ch].ControlLineStateChanged)
 	{
-		if ((cdc_data[0].ControlLineState & (CDC_CTL_DTR | CDC_CTL_RTS)) == (CDC_CTL_DTR | CDC_CTL_RTS))
-		{
-			signon_delay_timer[0] = SIGNON_DELAY;	// display prompt after 50 ms
-			NVIC_EnableIRQ(VCOM0_tx_IRQn);
-		}
-		else
-		{
-			//NVIC_DisableIRQ(VCOM0_tx_IRQn);
-			// should reset the state
-			signon_delay_timer[0] = 0;	// possible hazard - SysTick
-			prompt_rq = 0;
-		}
-		cdc_data[0].ControlLineStateChanged = 0;
 	}
-	if (cdc_data[0].RxLength)
+	if (cdc_data[ch].RxLength)
 	{
-		uint8_t *rxptr = cdc_data[0].RxData; //
-		for (uint8_t i = 0; i < cdc_data[0].RxLength; i++)
-			prompt_rq |= process_input(*rxptr++);
-		cdc_data[0].RxLength = 0;
-		allow_rx(CDC0_DATA_OUT_EP);
+		uint8_t *rxptr = cdc_data[ch].RxData; //
+		for (uint8_t i = 0; i < cdc_data[ch].RxLength; i++)
+			prompt_rq |= process_input(ch, *rxptr++);
+		cdc_data[ch].RxLength = 0;
+		allow_rx(vcomcfg[ch].out_epn);
 	}
-	if (signon_rq[0])
+	if (cdc_data[ch].signon_rq)
 	{
-		signon_rq[0] = 0;
-		vcom0_putstring(SIGNON);
+		cdc_data[ch].signon_rq = 0;
+		vcom_putstring(ch, vcomcfg[ch].signon);
 		prompt_rq = 1;
 	}
 	if (prompt_rq)
 	{
 		prompt_rq = 0;
-		vcom0_putstring(PROMPT);
+		vcom_putstring(ch, vcomcfg[ch].prompt);
 	}
 }
 
+void VCOM0_rx_IRQHandler(void)
+{
+	VCOM_rx_IRQHandler(0);
+}
 // transmit handler, must have the same priority as USB hw interrupt
 void VCOM0_tx_IRQHandler(void)
 {
@@ -244,39 +257,7 @@ __attribute__ ((weak)) bool process_input1(uint8_t c)
 
 void VCOM1_rx_IRQHandler(void)
 {
-	if (cdc_data[1].LineCodingChanged)
-	{
-		cdc_data[1].LineCodingChanged = 0;
-		// if needed, handle here
-	}
-	if (cdc_data[1].ControlLineStateChanged)
-	{
-		if ((cdc_data[1].ControlLineState & (CDC_CTL_DTR | CDC_CTL_RTS)) == (CDC_CTL_DTR | CDC_CTL_RTS))
-		{
-			signon_delay_timer[1] = SIGNON_DELAY;	// display prompt after 50 ms
-			NVIC_EnableIRQ(VCOM1_tx_IRQn);
-		}
-		else
-		{
-			//NVIC_DisableIRQ(VCOM1_tx_IRQn);
-			// should reset the state
-			signon_delay_timer[1] = 0;	// possible hazard - SysTick
-		}
-		cdc_data[1].ControlLineStateChanged = 0;
-	}
-	if (cdc_data[1].RxLength)
-	{
-		uint8_t *rxptr = cdc_data[1].RxData; //
-		for (uint8_t i = 0; i < cdc_data[1].RxLength; i++)
-			prompt_rq |= process_input1(*rxptr++);
-		cdc_data[1].RxLength = 0;
-		allow_rx(CDC1_DATA_OUT_EP);
-	}
-	if (signon_rq[1])
-	{
-		signon_rq[1] = 0;
-		vcom1_putstring(SIGNON1);
-	}
+	VCOM_rx_IRQHandler(1);
 }
 
 // transmit handler, must have the same priority as USB hw interrupt
@@ -340,7 +321,7 @@ void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
 // called form USB hw interrupt
 void DataSentHandler(const struct usbdevice_ *usbd, uint8_t epn)
 {
-	LED_Toggle();
+//	LED_Toggle();
 	switch (epn)
 	{
 	case CDC0_DATA_IN_EP:

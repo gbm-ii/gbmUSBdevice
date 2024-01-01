@@ -31,7 +31,7 @@ extern const struct USBhw_services_ f1_fs_services;
 #endif
 
 // USB FS Device - F0, L0, L5
-#elif defined(STM32F072xB)
+#elif defined(STM32F072xB) || defined(STM32F042x6)
 #include "stm32f0xx.h"
 #define USB_NEPPAIRS	8u	// no. of endpoint pairs supported by hardware
 #define EPNUMMSK	7u

@@ -173,6 +173,9 @@ struct cdc_data_ {
 	uint16_t ControlLineState;	// bit 0 - DTE ready, bit 1 - CD
 	bool LineCodingChanged;
 	bool ControlLineStateChanged;
+	volatile bool connected;
+	bool signon_rq;
+	uint8_t connstart_timer;
 	uint16_t RxLength;
 	bool TxBuf;
 	volatile uint8_t TxLength;

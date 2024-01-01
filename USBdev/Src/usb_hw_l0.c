@@ -15,8 +15,9 @@
  * You should have received a copy of the GNU General Public License 
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#if defined(STM32F072xB) || defined(STM32L073xx) || defined(STM32L452xx) || defined(STM32L552xx)
-#ifdef STM32F072xB
+#if defined(STM32F042x6) || defined(STM32F072xB) || defined(STM32L073xx) || defined(STM32L452xx) || defined(STM32L552xx)
+
+#if defined(STM32F042x6) || defined(STM32F072xB)
 #include "stm32f0xx.h"
 #endif
 #ifdef STM32L073xx
@@ -156,7 +157,7 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 	usb->EPR[0] = USB_EPR_EPTYPE(0) | USB_EPR_STATRX(USB_EPSTATE_VALID) | USB_EPR_STATTX(USB_EPSTATE_NAK);
     usb->ISTR = 0;
     usb->DADDR = USB_DADDR_EF;
-    usb->CNTR = USB_CNTR_CTRM | USB_CNTR_RESETM | USB_CNTR_SUSPM  | USB_CNTR_WKUPM;
+    usb->CNTR = USB_CNTR_CTRM | USB_CNTR_RESETM | USB_CNTR_SUSPM  | USB_CNTR_WKUPM | USB_CNTR_SOFM;
     // TODO: enable SOF if handler defined
 }
 
@@ -346,10 +347,11 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 		{
 			USBhw_ReadRxData(usbd, epn);
 			*epr &= USB_EPR_CFG & ~USB_EP_CTR_RX;		// clear CTR_RX
-			if (*epr & USB_EP_SETUP)
-				USBdev_SetupEPHandler(usbd, epn);
-			else
-				USBdev_OutEPHandler(usbd, epn, *epr & USB_EP_SETUP);
+			USBdev_OutEPHandler(usbd, epn, *epr & USB_EP_SETUP);
+//			if (*epr & USB_EP_SETUP)
+//				USBdev_SetupEPHandler(usbd, epn);
+//			else
+//				USBdev_OutEPHandler(usbd, epn, *epr & USB_EP_SETUP);
 		}
 		if (*epr & USB_EP_CTR_TX)	// data sent on In endpoint
 		{
@@ -389,7 +391,8 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
     if (istr & USB_ISTR_SOF)
 	{
         usb->ISTR = ~USB_ISTR_SOF;
-		// callback?
+        if (usbd->SOF_Handler)
+        	usbd->SOF_Handler();
     }
 }
 

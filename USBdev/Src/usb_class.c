@@ -36,14 +36,14 @@
 uint8_t prn_Status = 0x0c;	// Selected, No Error
 uint8_t msc_max_lun = 0;
 
- __attribute__ ((weak)) void cdc_LineStateHandler(const struct usbdevice_ *usbd, uint8_t idx)
+ __attribute__ ((weak)) void xxcdc_LineStateHandler(const struct usbdevice_ *usbd, uint8_t idx)
 {
     /* NOTE: This function should not be modified, if the callback is needed,
        it should be implemented in app file
     */
 }
 
- __attribute__ ((weak)) void cdc_LineCodingHandler(const struct usbdevice_ *usbd, uint8_t idx)
+ __attribute__ ((weak)) void xxcdc_LineCodingHandler(const struct usbdevice_ *usbd, uint8_t idx)
 {
     /* NOTE: This function should not be modified, if the callback is needed,
        it should be implemented in app file
