@@ -68,15 +68,15 @@ extern const struct USBhw_services_ g0_fs_services;
 #elif defined(STM32H503xx)
 #include "stm32h5xx.h"
 // like G0B1
-//#error incomplete H5 support - verify!
 #define USB_NEPPAIRS	8u	// no. of endpoint pairs supported by hardware
 #define EPNUMMSK	7u
 extern const struct USBhw_services_ g0_fs_services;
 #define usb_hw_services	g0_fs_services
 
-#define USB_BASE	USB_DRD_FS_BASE
 #define USB_IRQn	USB_DRD_FS_IRQn
 #define USB_IRQHandler	USB_DRD_FS_IRQHandler
+
+#define USB_BASE	USB_DRD_FS_BASE
 
 #elif defined(STM32F401xC)
 #include "stm32f4xx.h"
