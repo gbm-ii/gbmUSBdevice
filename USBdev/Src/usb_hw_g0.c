@@ -346,19 +346,13 @@ static void USBhw_ReadRxData(const struct usbdevice_ *usbd, uint8_t epn)
 {
 	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
 	
-	ICACHE_OFF;
-	__NOP();
-	__NOP();
-	__NOP();
-	__NOP();
-	uint16_t bcount = usb->BUFDESC[epn].RxAddressCount.count;
-	__NOP();
-	__NOP();
-	usbd->outep[epn].count = bcount;
-	ICACHE_ON;
+	// count field in EP descriptor is updated with some delay, so do something else first
+	uint8_t *dst = usbd->outep[epn].ptr;
 	const uint8_t *src = (const uint8_t *)usb->PMA + usb->BUFDESC[epn].RxAddressCount.addr;
 	const volatile uint32_t *srcw = (const uint32_t *)src;
-	uint8_t *dst = usbd->outep[epn].ptr;
+	// "wait for descriptor update" - ST HAL code uses loop here
+	uint16_t bcount = usb->BUFDESC[epn].RxAddressCount.count;
+	usbd->outep[epn].count = bcount;
 	while (bcount)
 	{
 		uint32_t w = *srcw++;
