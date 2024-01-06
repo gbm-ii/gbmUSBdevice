@@ -23,6 +23,10 @@
 
 #ifdef STM32H503xx
 #include "stm32h5xx.h"
+#ifdef ICACHE_CR_EN
+#define ICACHE_ON	(ICACHE->CR |= ICACHE_CR_EN)
+#define ICACHE_OFF	(ICACHE->CR &= ~ICACHE_CR_EN)
+#endif
 #endif
 
 #include <string.h>
@@ -48,8 +52,6 @@ struct USB_BufDesc_ {
 	volatile union USB_BDesc_ TxAddressCount;
 	volatile union USB_BDesc_ RxAddressCount;
 };
-
-#define USB_PMA_OFFSET ((USB_DRD_PMAADDR) - (USB_DRD_BASE))
 
 // software-friendly USB peripheral reg definition
 // G0B1: USB peripheral at 0x40005C00, RAM at 0x40009800
@@ -344,11 +346,18 @@ static void USBhw_ReadRxData(const struct usbdevice_ *usbd, uint8_t epn)
 {
 	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
 	
+	ICACHE_OFF;
+	__NOP();
+	__NOP();
+	__NOP();
+	__NOP();
 	uint16_t bcount = usb->BUFDESC[epn].RxAddressCount.count;
+	__NOP();
+	__NOP();
 	usbd->outep[epn].count = bcount;
+	ICACHE_ON;
 	const uint8_t *src = (const uint8_t *)usb->PMA + usb->BUFDESC[epn].RxAddressCount.addr;
-	//memcpy(usbd->outep[epn].ptr, src, bcount);
-	const uint32_t *srcw = (const uint32_t *)src;
+	const volatile uint32_t *srcw = (const uint32_t *)src;
 	uint8_t *dst = usbd->outep[epn].ptr;
 	while (bcount)
 	{

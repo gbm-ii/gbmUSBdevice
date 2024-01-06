@@ -65,6 +65,8 @@ extern const struct USBhw_services_ g0_fs_services;
 #define USB_IRQn	USB_UCPD1_2_IRQn
 #define USB_IRQHandler	USB_UCPD1_2_IRQHandler
 
+#define USB_PMA_OFFSET ((USB_DRD_PMAADDR) - (USB_DRD_BASE))
+
 #elif defined(STM32H503xx)
 #include "stm32h5xx.h"
 // like G0B1
@@ -77,6 +79,7 @@ extern const struct USBhw_services_ g0_fs_services;
 #define USB_IRQHandler	USB_DRD_FS_IRQHandler
 
 #define USB_BASE	USB_DRD_FS_BASE
+#define USB_PMA_OFFSET ((USB_DRD_PMAADDR_NS) - (USB_DRD_BASE_NS))
 
 #elif defined(STM32F401xC)
 #include "stm32f4xx.h"
