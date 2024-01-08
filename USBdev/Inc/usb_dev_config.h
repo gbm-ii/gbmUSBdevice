@@ -26,7 +26,9 @@
 #define CDC_INT_EP_SIZE	8u
 #define PRN_DATA_EP_SIZE	64u
 
-#define CDC_INT_POLLING_INTERVAL	20u	// ms
+//#define USE_COMMON_CDC_INT_IN_EP
+
+#define CDC_INT_POLLING_INTERVAL	10u	// ms
 
 // interface numbers - start at 0
 enum usbd_ifnum_ {
@@ -38,8 +40,11 @@ enum usbd_ifnum_ {
 	IFNUM_CDC0_CONTROL, IFNUM_CDC0_DATA,
 #if USBD_CDC_CHANNELS > 1
 	IFNUM_CDC1_CONTROL, IFNUM_CDC1_DATA,
-#endif
-#endif
+#if USBD_CDC_CHANNELS > 2
+	IFNUM_CDC2_CONTROL, IFNUM_CDC2_DATA,
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
+#endif	// USBD_CDC_CHANNELS
 
 #if USBD_PRINTER
 	IFNUM_PRN,
@@ -59,10 +64,18 @@ enum usbd_epaddr_ {
 	EMPTY0_EP,
 	CDC0_DATA_OUT_EP,
 #if USBD_CDC_CHANNELS > 1
+#ifndef USE_COMMON_CDC_INT_IN_EP
 	EMPTY1_EP,
+#endif
 	CDC1_DATA_OUT_EP,
+#if USBD_CDC_CHANNELS > 2
+#ifndef USE_COMMON_CDC_INT_IN_EP
+	EMPTY2_EP,
 #endif
-#endif
+	CDC2_DATA_OUT_EP,
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
+#endif	// USBD_CDC_CHANNELS
 
 #if USBD_PRINTER
 	PRN_DATA_OUT_EP,
@@ -83,8 +96,14 @@ enum usbd_epaddr_ {
 	CDC1_INT_IN_EP,
 #endif
 	CDC1_DATA_IN_EP,
+#if USBD_CDC_CHANNELS > 2
+#ifndef USE_COMMON_CDC_INT_IN_EP
+	CDC2_INT_IN_EP,
 #endif
-#endif
+	CDC2_DATA_IN_EP,
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
+#endif	// USBD_CDC_CHANNELS
 //	PRN_DATA_IN_EP,
 	USBD_IN_EPS	// no. of In endpoints
 };

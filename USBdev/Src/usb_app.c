@@ -1,7 +1,7 @@
 /* 
  * lightweight USB device stack by gbm
  * usb_app.c - application example
- * Copyright (c) 2022 gbm
+ * Copyright (c) 2022..2024 gbm
  * 
  * This program is free software: you can redistribute it and/or modify  
  * it under the terms of the GNU General Public License as published by  
@@ -31,8 +31,9 @@
 #include "usbdev_binding.h"
 
 #define SIGNON_DELAY	50u
-#define SIGNON0	"\r\nVCOM0 started\r\n"
-#define SIGNON1	"\r\nVCOM1 started\r\n"
+#define SIGNON0	"\r\nVCOM0 ready\r\n"
+#define SIGNON1	"\r\nVCOM1 ready\r\n"
+#define SIGNON2	"\r\nVCOM2 ready\r\n"
 #define PROMPT	">"
 
 void LED_Toggle(void);	// in main.c
@@ -45,6 +46,9 @@ static struct cdc_data_ cdc_data[USBD_CDC_CHANNELS] = {
 	[0] = {.LineCoding = {.dwDTERate = 115200, .bDataBits = 8}},
 #if USBD_CDC_CHANNELS > 1
 	[1] = {.LineCoding = {.dwDTERate = 115200, .bDataBits = 8}},
+#if USBD_CDC_CHANNELS > 2
+	[2] = {.LineCoding = {.dwDTERate = 115200, .bDataBits = 8}},
+#endif
 #endif
 };
 #endif
@@ -62,8 +66,16 @@ static struct epdata_ out_epdata[USBD_NUM_EPPAIRS] = {
 	{.ptr = 0, .count = 0},	// unused
 	{.ptr = cdc_data[0].RxData, .count = 0},
 #if USBD_CDC_CHANNELS > 1
+#ifndef USE_COMMON_CDC_INT_IN_EP
 	{.ptr = 0, .count = 0},	// unused
+#endif
 	{.ptr = cdc_data[1].RxData, .count = 0},
+#if USBD_CDC_CHANNELS > 2
+#ifndef USE_COMMON_CDC_INT_IN_EP
+	{.ptr = 0, .count = 0},	// unused
+#endif
+	{.ptr = cdc_data[2].RxData, .count = 0},
+#endif
 #endif
 #if USBD_PRINTER
 	{.ptr = prnRxData, .count = 0},
@@ -83,6 +95,9 @@ const struct vcomcfg_ vcomcfg[USBD_CDC_CHANNELS] = {
 	{VCOM0_rx_IRQn, VCOM0_tx_IRQn, CDC0_DATA_OUT_EP, CDC0_DATA_IN_EP, SIGNON0, ">"},
 #if USBD_CDC_CHANNELS > 1
 	{VCOM1_rx_IRQn, VCOM1_tx_IRQn, CDC1_DATA_OUT_EP, CDC1_DATA_IN_EP, SIGNON1},
+#if USBD_CDC_CHANNELS > 2
+	{VCOM2_rx_IRQn, VCOM2_tx_IRQn, CDC2_DATA_OUT_EP, CDC2_DATA_IN_EP, SIGNON2},
+#endif
 #endif
 };
 
@@ -135,7 +150,7 @@ void vcom1_putstring(const char *s)
 // return 1 if prompt requested
 __attribute__ ((weak)) bool process_input(uint8_t ch, uint8_t c)
 {
-	vcom_putchar(ch, c);
+	vcom_putchar(ch, c);	// echo to the same channel
 	return 0;
 }
 
@@ -195,6 +210,7 @@ void usbdev_tick(void)
 #endif
 }
 
+#if USBD_CDC_CHANNELS
 // data reception and state change handler, priority lower than USB hw interrupt
 void VCOM_rx_IRQHandler(uint8_t ch)
 {
@@ -233,28 +249,27 @@ void VCOM0_rx_IRQHandler(void)
 {
 	VCOM_rx_IRQHandler(0);
 }
+
 // transmit handler, must have the same priority as USB hw interrupt
-void VCOM0_tx_IRQHandler(void)
+void VCOM_tx_IRQHandler(uint8_t ch)
 {
-	struct cdc_data_ *cdp = &cdc_data[0];
+	struct cdc_data_ *cdp = &cdc_data[ch];
 
 	if (cdp->TxLength)
 	{
-		NVIC_DisableIRQ(VCOM0_tx_IRQn);
-		USBdev_SendData(&usbdev, CDC0_DATA_IN_EP, cdp->TxData[cdp->TxBuf], cdp->TxLength, 1);
+		NVIC_DisableIRQ(vcomcfg[ch].tx_irqn);
+		USBdev_SendData(&usbdev, vcomcfg[ch].in_epn, cdp->TxData[cdp->TxBuf], cdp->TxLength, 1);
 		cdp->TxBuf ^= 1;	// switch buffer
 		cdp->TxLength = 0;	// clear counter
 	}
 }
 
-#if USBD_CDC_CHANNELS > 1
-// return 1 if prompt requested
-__attribute__ ((weak)) bool process_input1(uint8_t c)
+void VCOM0_tx_IRQHandler(void)
 {
-	vcom1_putc(c);
-	return 0;
+	VCOM_tx_IRQHandler(0);
 }
 
+#if USBD_CDC_CHANNELS > 1
 void VCOM1_rx_IRQHandler(void)
 {
 	VCOM_rx_IRQHandler(1);
@@ -263,17 +278,23 @@ void VCOM1_rx_IRQHandler(void)
 // transmit handler, must have the same priority as USB hw interrupt
 void VCOM1_tx_IRQHandler(void)
 {
-	struct cdc_data_ *cdp = &cdc_data[1];
-
-	if (cdp->TxLength)
-	{
-		NVIC_DisableIRQ(VCOM1_tx_IRQn);
-		USBdev_SendData(&usbdev, CDC1_DATA_IN_EP, cdp->TxData[cdp->TxBuf], cdp->TxLength, 1);
-		cdp->TxBuf ^= 1;	// switch buffer
-		cdp->TxLength = 0;	// clear counter
-	}
+	VCOM_tx_IRQHandler(1);
 }
-#endif
+
+#if USBD_CDC_CHANNELS > 2
+void VCOM2_rx_IRQHandler(void)
+{
+	VCOM_rx_IRQHandler(2);
+}
+
+// transmit handler, must have the same priority as USB hw interrupt
+void VCOM2_tx_IRQHandler(void)
+{
+	VCOM_tx_IRQHandler(2);
+}
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
+#endif	// USBD_CDC_CHANNELS
 
 // Application routines ==================================================
 
@@ -304,6 +325,12 @@ void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
 				cdc_data[1].RxLength = length;
 				NVIC_SetPendingIRQ(VCOM1_rx_IRQn);
 				break;
+#if USBD_CDC_CHANNELS > 2
+			case CDC2_DATA_OUT_EP:
+				cdc_data[2].RxLength = length;
+				NVIC_SetPendingIRQ(VCOM2_rx_IRQn);
+				break;
+#endif
 #endif
 #if USBD_PRINTER
 			case PRN_DATA_OUT_EP:
@@ -331,6 +358,11 @@ void DataSentHandler(const struct usbdevice_ *usbd, uint8_t epn)
 	case CDC1_DATA_IN_EP:
 		NVIC_EnableIRQ(VCOM1_tx_IRQn);
 		break;
+#if USBD_CDC_CHANNELS > 2
+	case CDC2_DATA_IN_EP:
+		NVIC_EnableIRQ(VCOM2_tx_IRQn);
+		break;
+#endif
 #endif
 	default:
 
@@ -487,7 +519,9 @@ static const struct epcfg_ outcfg[USBD_NUM_EPPAIRS] = {
 	{.ifidx = IFNUM_CDC0_CONTROL, .handler = 0},	// unused
 	{.ifidx = IFNUM_CDC0_DATA, .handler = DataReceivedHandler},
 #if USBD_CDC_CHANNELS > 1
+#ifndef USE_COMMON_CDC_INT_IN_EP
 	{.ifidx = IFNUM_CDC1_CONTROL, .handler = 0},	// unused
+#endif
 	{.ifidx = IFNUM_CDC1_DATA, .handler = DataReceivedHandler},
 #endif
 #if USBD_PRINTER
@@ -501,7 +535,9 @@ static const struct epcfg_ incfg[USBD_NUM_EPPAIRS] = {
 	{.ifidx = IFNUM_CDC0_CONTROL, .handler = 0},
 	{.ifidx = IFNUM_CDC0_DATA, .handler = DataSentHandler},
 #if USBD_CDC_CHANNELS > 1
+#ifndef USE_COMMON_CDC_INT_IN_EP
 	{.ifidx = IFNUM_CDC1_CONTROL, .handler = 0},
+#endif
 	{.ifidx = IFNUM_CDC1_DATA, .handler = DataSentHandler},
 #endif
 #if USBD_PRINTER
