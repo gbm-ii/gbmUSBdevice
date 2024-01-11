@@ -30,6 +30,9 @@
 
 #include "usbdev_binding.h"
 
+// forward def
+static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc;
+
 #define SIGNON_DELAY	50u
 #define SIGNON0	"\r\nVCOM0 ready\r\n"
 #define SIGNON1	"\r\nVCOM1 ready\r\n"
@@ -87,16 +90,15 @@ static struct epdata_ in_epdata[USBD_NUM_EPPAIRS]; // no need to init
 
 struct vcomcfg_ {
 	uint8_t rx_irqn, tx_irqn;
-	uint8_t out_epn, in_epn;
 	const char *signon, *prompt;
 };
 
 const struct vcomcfg_ vcomcfg[USBD_CDC_CHANNELS] = {
-	{VCOM0_rx_IRQn, VCOM0_tx_IRQn, CDC0_DATA_OUT_EP, CDC0_DATA_IN_EP, SIGNON0, ">"},
+	{VCOM0_rx_IRQn, VCOM0_tx_IRQn, SIGNON0, ">"},
 #if USBD_CDC_CHANNELS > 1
-	{VCOM1_rx_IRQn, VCOM1_tx_IRQn, CDC1_DATA_OUT_EP, CDC1_DATA_IN_EP, SIGNON1},
+	{VCOM1_rx_IRQn, VCOM1_tx_IRQn, SIGNON1},
 #if USBD_CDC_CHANNELS > 2
-	{VCOM2_rx_IRQn, VCOM2_tx_IRQn, CDC2_DATA_OUT_EP, CDC2_DATA_IN_EP, SIGNON2},
+	{VCOM2_rx_IRQn, VCOM2_tx_IRQn, SIGNON2},
 #endif
 #endif
 };
@@ -178,6 +180,7 @@ void PRN_rx_IRQHandler(void)
 }
 #endif
 
+#if USBD_CDC_CHANNELS
 void cdc_LineStateHandler(const struct usbdevice_ *usbd, uint8_t ch)
 {
 	// called from USB interrupt, overwrites the default handler in usb_class.c
@@ -195,10 +198,35 @@ void cdc_LineStateHandler(const struct usbdevice_ *usbd, uint8_t ch)
 	cdc_data[ch].ControlLineStateChanged = 0;
 }
 
+// Serial state notification =============================================
+struct cdc_seriastatenotif_  ssnotif = {
+	.bmRequestType = {.Recipient = USB_RQREC_INTERFACE, .Type = USB_RQTYPE_CLASS, .DirIn = 1},
+	.bNotification = CDC_NOTIFICATION_SERIAL_STATE,
+	.wIndex = 0,	// interface
+	.wLength = 2,	// size of wSerialState
+	.wSerialState = 0
+};
+
+static void send_serialstate_notif(uint8_t ch)
+{
+	ssnotif.wIndex = ConfigDesc.cdc[ch].cdcdesc.cdccomifdesc.bInterfaceNumber;	// interface
+	ssnotif.wSerialState = cdc_data[ch].SerialState;
+	USBdev_SendData(&usbdev, ConfigDesc.cdc[ch].cdcdesc.cdcnotif.bEndpointAddress,
+		(const uint8_t *)&ssnotif, sizeof(ssnotif), 0);
+	cdc_data[ch].SerialState &= CDC_SERIAL_STATE_TX_CARRIER | CDC_SERIAL_STATE_RX_CARRIER;	// reset other flags
+}
+#endif
+//========================================================================
 // called from USB interrupt at 1 kHz (SOF)
 void usbdev_tick(void)
 {
 #if USBD_CDC_CHANNELS
+	static uint16_t dt;
+	if ((++dt & 0x3ff) == 0)
+	{
+		cdc_data[0].SerialState = dt >> 10 & 3;
+		send_serialstate_notif(0);
+	}
 	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
 		if (cdc_data[ch].connstart_timer && --cdc_data[ch].connstart_timer == 0)
 		{
@@ -230,7 +258,7 @@ void VCOM_rx_IRQHandler(uint8_t ch)
 		for (uint8_t i = 0; i < cdc_data[ch].RxLength; i++)
 			prompt_rq |= process_input(ch, *rxptr++);
 		cdc_data[ch].RxLength = 0;
-		allow_rx(vcomcfg[ch].out_epn);
+		allow_rx(ConfigDesc.cdc[ch].cdcdesc.cdcout.bEndpointAddress);
 	}
 	if (cdc_data[ch].signon_rq)
 	{
@@ -258,7 +286,8 @@ void VCOM_tx_IRQHandler(uint8_t ch)
 	if (cdp->TxLength)
 	{
 		NVIC_DisableIRQ(vcomcfg[ch].tx_irqn);
-		USBdev_SendData(&usbdev, vcomcfg[ch].in_epn, cdp->TxData[cdp->TxBuf], cdp->TxLength, 1);
+		USBdev_SendData(&usbdev, ConfigDesc.cdc[ch].cdcdesc.cdcin.bEndpointAddress,
+			cdp->TxData[cdp->TxBuf], cdp->TxLength, 1);
 		cdp->TxBuf ^= 1;	// switch buffer
 		cdp->TxLength = 0;	// clear counter
 	}
@@ -523,6 +552,12 @@ static const struct epcfg_ outcfg[USBD_NUM_EPPAIRS] = {
 	{.ifidx = IFNUM_CDC1_CONTROL, .handler = 0},	// unused
 #endif
 	{.ifidx = IFNUM_CDC1_DATA, .handler = DataReceivedHandler},
+#if USBD_CDC_CHANNELS > 2
+#ifndef USE_COMMON_CDC_INT_IN_EP
+	{.ifidx = IFNUM_CDC2_CONTROL, .handler = 0},	// unused
+#endif
+	{.ifidx = IFNUM_CDC2_DATA, .handler = DataReceivedHandler},
+#endif
 #endif
 #if USBD_PRINTER
 	{.ifidx = IFNUM_PRN, .handler = DataReceivedHandler},
@@ -539,6 +574,12 @@ static const struct epcfg_ incfg[USBD_NUM_EPPAIRS] = {
 	{.ifidx = IFNUM_CDC1_CONTROL, .handler = 0},
 #endif
 	{.ifidx = IFNUM_CDC1_DATA, .handler = DataSentHandler},
+#if USBD_CDC_CHANNELS > 2
+#ifndef USE_COMMON_CDC_INT_IN_EP
+	{.ifidx = IFNUM_CDC2_CONTROL, .handler = 0},
+#endif
+	{.ifidx = IFNUM_CDC2_DATA, .handler = DataSentHandler},
+#endif
 #endif
 #if USBD_PRINTER
 	{.ifidx = IFNUM_PRN, .handler = DataSentHandler},
@@ -555,6 +596,10 @@ const struct ifassoc_ if2fun[USBD_NUM_INTERFACES] = {
 #if USBD_CDC_CHANNELS > 1
 	[IFNUM_CDC1_CONTROL] = {.classid = USB_CLASS_COMMUNICATIONS, .funidx = 1},
 	[IFNUM_CDC1_DATA] = {.classid = USB_CLASS_COMMUNICATIONS, .funidx = 1},
+#if USBD_CDC_CHANNELS > 2
+	[IFNUM_CDC2_CONTROL] = {.classid = USB_CLASS_COMMUNICATIONS, .funidx = 2},
+	[IFNUM_CDC2_DATA] = {.classid = USB_CLASS_COMMUNICATIONS, .funidx = 2},
+#endif
 #endif
 #if USBD_PRINTER
 	[IFNUM_PRN] = {.classid = USB_CLASS_PRINTER, .funidx = 0},

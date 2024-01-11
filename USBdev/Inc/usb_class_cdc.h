@@ -134,13 +134,15 @@
 
 // UART state bitmap values (Serial state notification).
 // (usbcdc11.pdf, 6.3.5, Table 69)
+// these should reset after the notification is sent
 #define CDC_SERIAL_STATE_OVERRUN                (1u << 6)  // receive data overrun error has occurred
 #define CDC_SERIAL_STATE_PARITY                 (1u << 5)  // parity error has occurred
 #define CDC_SERIAL_STATE_FRAMING                (1u << 4)  // framing error has occurred
 #define CDC_SERIAL_STATE_RING                   (1u << 3)  // state of ring signal detection
 #define CDC_SERIAL_STATE_BREAK                  (1u << 2)  // state of break detection
-#define CDC_SERIAL_STATE_TX_CARRIER             (1u << 1)  // state of transmission carrier
-#define CDC_SERIAL_STATE_RX_CARRIER             (1u << 0)  // state of receiver carrier
+// the notification should be sent whenever these change
+#define CDC_SERIAL_STATE_TX_CARRIER             (1u << 1)  // state of transmission carrier, DSR
+#define CDC_SERIAL_STATE_RX_CARRIER             (1u << 0)  // state of receiver carrier, DCD
 
 enum uart_stopbits_ {STOPBITS_1, STOPBITS_1_5, STOPBITS_2};
 enum uart_parity_ {PARITY_NONE, PARITY_ODD, PARITY_EVEN, PARITY_MARK, PARITY_SPACE};
@@ -168,9 +170,19 @@ struct cdc_linecoding_ {
 	uint8_t bDataBits;	//  |   1   | Number Data bits (5, 6, 7, 8 or 16).          */
 };
 
+// Serial state notification =============================================
+struct cdc_seriastatenotif_ {
+    USB_RequestType bmRequestType;
+	uint8_t bNotification;
+	uint16_t wValue, wIndex, wLength;
+	uint16_t wSerialState;
+};
+
+// application-specific
 struct cdc_data_ {
 	struct cdc_linecoding_ LineCoding;
 	uint16_t ControlLineState;	// bit 0 - DTE ready, bit 1 - CD
+	uint16_t SerialState;
 	bool LineCodingChanged;
 	bool ControlLineStateChanged;
 	volatile bool connected;
