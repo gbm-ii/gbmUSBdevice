@@ -17,7 +17,7 @@
  */
 
 // verified on F401, L476, L496, L4R5
-#if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4R5xx) || defined(STM32F401xC)
+#if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4R5xx) || defined(STM32F401xC) || defined (STM32U575xx)
 
 #if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4R5xx)
 #ifndef STM32L4
@@ -47,6 +47,23 @@
 #endif /* defined USB_OTG_DOEPINT_STPKTRX */
 //        USBx_OUTEP(i)->DOEPINT = 0xFB7FU;
 
+#if defined (STM32U575xx)
+// software-friendly USB peripheral reg definition F4/L4
+#define USB_OTG_INEndpointTypeDef _INEndpointTypeDef
+#define USB_OTG_OUTEndpointTypeDef _OUTEndpointTypeDef
+typedef struct USB_OTG_ {
+	USB_OTG_GlobalTypeDef Global;
+	uint8_t gfill[USB_OTG_DEVICE_BASE - sizeof(USB_OTG_GlobalTypeDef) - USB_OTG_GLOBAL_BASE];
+	USB_OTG_DeviceTypeDef Device;
+	uint8_t dfill[USB_OTG_IN_ENDPOINT_BASE - sizeof(USB_OTG_DeviceTypeDef) - USB_OTG_DEVICE_BASE];
+	USB_OTG_INEndpointTypeDef InEP[1];
+	uint8_t ifill[USB_OTG_OUT_ENDPOINT_BASE - sizeof(USB_OTG_INEndpointTypeDef) - USB_OTG_IN_ENDPOINT_BASE];
+	USB_OTG_OUTEndpointTypeDef OutEP[1];
+	uint8_t ofill[USB_OTG_FIFO_BASE - sizeof(USB_OTG_OUTEndpointTypeDef) - USB_OTG_OUT_ENDPOINT_BASE];
+	volatile uint32_t FIFO[31][0x400];
+	volatile uint32_t FIFODBG[0x400];	// FIFO RAM debug access at offset 0x20000
+} USB_OTG_TypeDef;	// USBh to make it different from possible mfg. additions to header files
+#else
 // software-friendly USB peripheral reg definition F4/L4
 typedef struct USB_OTG_ {
 	USB_OTG_GlobalTypeDef Global;
@@ -60,7 +77,7 @@ typedef struct USB_OTG_ {
 	volatile uint32_t FIFO[31][0x400];
 	volatile uint32_t FIFODBG[0x400];	// FIFO RAM debug access at offset 0x20000
 } USB_OTG_TypeDef;	// USBh to make it different from possible mfg. additions to header files
-
+#endif
 //========================================================================
 // USB peripheral must be enabled before calling Init
 // G0, L4 specific: before enabling USB, set PWR_CR2_USV
@@ -83,7 +100,7 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
 	while (usbg->GINTSTS & USB_OTG_GINTSTS_CMOD); 	// while in host mode
 	usbg->GCCFG |= USB_OTG_GCCFG_PWRDWN;	// power up phy bylo tutaj
 
-#ifdef STM32L4
+#if defined(STM32L4) || defined (STM32U575xx)
     usbg->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN | USB_OTG_GOTGCTL_BVALOVAL;
 #endif
 #ifdef STM32F401xC
@@ -182,16 +199,17 @@ static void USBhw_EnableRx(const struct usbdevice_ *usbd, uint8_t epn)
 
 static void USBhw_EnableCtlSetup(const struct usbdevice_ *usbd)
 {
-#if 0
 	USB_OTG_TypeDef *usb = (USB_OTG_TypeDef *)usbd->usb;
-	USB_OTG_GlobalTypeDef *usbg = &usb->Global;
+	//USB_OTG_GlobalTypeDef *usbg = &usb->Global;
 	USB_OTG_OUTEndpointTypeDef *outep = usb->OutEP;
+#if 0
 
 	if (usbg->GSNPSID <= USB_OTG_CORE_ID_300A || !(outep->DOEPCTL & USB_OTG_DOEPCTL_EPENA))
 		outep->DOEPTSIZ = USB_OTG_DOEPTSIZ_STUPCNT_Msk | 1u << USB_OTG_DOEPTSIZ_PKTCNT_Pos
 			| (3 * 8);	// 3 setup packets
 #endif
 	//outep->DOEPCTL |= USB_OTG_DOEPCTL_STALL;
+	//outep->DOEPTSIZ = 1u << USB_OTG_DOEPTSIZ_STUPCNT_Pos | 1u << USB_OTG_DOEPTSIZ_PKTCNT_Pos | usbd->cfg->devdesc->bMaxPacketSize0;	// 3 setup packets
 }
 
 // EP Type hardware setting for L4 is the same as USB standard encoding

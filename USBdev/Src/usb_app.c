@@ -225,7 +225,7 @@ void usbdev_tick(void)
 	if ((++dt & 0x3ff) == 0)
 	{
 		cdc_data[0].SerialState = dt >> 10 & 3;
-		send_serialstate_notif(0);
+		//send_serialstate_notif(0);
 	}
 	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
 		if (cdc_data[ch].connstart_timer && --cdc_data[ch].connstart_timer == 0)

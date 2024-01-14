@@ -95,6 +95,16 @@ extern const struct USBhw_services_ l4_otgfs_services;
 extern const struct USBhw_services_ l4_otgfs_services;
 #define usb_hw_services	l4_otgfs_services
 
+#elif defined (STM32U575xx)
+#include "stm32u5xx.h"
+#define USB_NEPPAIRS	6u	// no. of endpoint pairs supported by hardware
+#define EPNUMMSK	7u
+extern const struct USBhw_services_ l4_otgfs_services;
+#define usb_hw_services	l4_otgfs_services
+
+#define USB_IRQn	OTG_FS_IRQn
+#define USB_IRQHandler	OTG_FS_IRQHandler
+#define USB_BASE USB_OTG_FS_BASE_NS
 #else
 #error Add your MCU support in usb_hw.h
 #endif
