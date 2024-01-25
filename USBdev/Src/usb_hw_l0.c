@@ -1,7 +1,7 @@
 /* 
  * lightweight USB device stack by gbm
  * usb_hw_l0.c - STM32F0/L0/L4/L5 USB device FS peripheral hardware access
- * Copyright (c) 2022 gbm
+ * Copyright (c) 2022..2024 gbm
  * 
  * This program is free software: you can redistribute it and/or modify  
  * it under the terms of the GNU General Public License as published by  
@@ -151,7 +151,7 @@ void USBhw_EnableRx(const struct usbdevice_ *usbd, uint8_t epn)
 
 static void USBhw_EnableCtlSetup(const struct usbdevice_ *usbd)
 {
-	USBhw_SetEPState(usbd, 0, USB_EPSTATE_STALL);
+	//USBhw_SetEPState(usbd, 0, USB_EPSTATE_STALL);
 }
 
 // hardware setting for F1, F0, L0, L4, L5 series ep types - different from USB standard encoding!
@@ -181,11 +181,12 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 	bufdesc[0].RxAddress = addr;
 	bufdesc[0].RxCount.v = (union rxcount_){.num_block = SetRxNumBlock(ep0size)}.v;
 	addr += ep0size;
-	usb->EPR[0] = USB_EPR_EPTYPE(0) | USB_EPR_STATRX(USB_EPSTATE_VALID) | USB_EPR_STATTX(USB_EPSTATE_NAK);
     usb->ISTR = 0;
     usb->DADDR = USB_DADDR_EF;
     usb->CNTR = USB_CNTR_CTRM | USB_CNTR_RESETM | USB_CNTR_SUSPM  | USB_CNTR_WKUPM | USB_CNTR_SOFM;
-    // TODO: enable SOF if handler defined
+	usb->EPR[0] = USB_EPR_EPTYPE(0);// | USB_EPR_STATRX(USB_EPSTATE_VALID) | USB_EPR_STATTX(USB_EPSTATE_NAK);
+    uint32_t epstate = USB_EPR_STATRX(USB_EPSTATE_NAK) | USB_EPR_STATTX(USB_EPSTATE_NAK);
+	SetEPRState(usbd, 0, USB_EPRX_STAT | USB_EPTX_STAT | USB_EP_DTOG_TX | USB_EP_DTOG_RX, epstate);
 }
 
 // setup and enable app endpoints on set configuration request
@@ -244,34 +245,6 @@ void USBhw_ResetCfg(const struct usbdevice_ *usbd)
 	}
 }
 
-// write data packet to be sent
-static void USBhw_WriteTxData(const struct usbdevice_ *usbd, uint8_t epn)
-{
-	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
-	struct epdata_ *epd = &usbd->inep[epn];
-	uint16_t epsize = usbd->hwif->GetInEPSize(usbd, epn);
-	uint16_t bcount = MIN(epd->count, epsize);
-	usb->PMA.BUFDESC[epn].TxCount = bcount;
-
-	if (bcount)
-	{
-		epd->count -= bcount;
-		volatile uint16_t *dest = &usb->PMA.PMA[(usb->PMA.BUFDESC[epn].TxAddress) / 2];
-		const uint8_t *src = epd->ptr;
-		while (bcount)
-		{
-			uint16_t v = *src++;
-			if (--bcount)
-			{
-				v |= *src++ << 8;
-				--bcount;
-			}
-			*dest++ = v;
-		}
-		epd->ptr = (uint8_t *)src;
-	}
-}
-
 // Driver functions called from other modules ============================
 
 // USB peripheral must be enabled before calling Init
@@ -312,10 +285,44 @@ static uint16_t USBhw_GetInEPSize(const struct usbdevice_ *usbd, uint8_t epn)
 	return bufdesc->RxAddress - bufdesc->TxAddress;
 }
 
-void USBhw_StartTx(const struct usbdevice_ *usbd, uint8_t epn)
+// write data packet to be sent
+static void USBhw_WriteTxData(const struct usbdevice_ *usbd, uint8_t epn)
+{
+	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
+	struct epdata_ *epd = &usbd->inep[epn];
+	uint16_t epsize = usbd->hwif->GetInEPSize(usbd, epn);
+	uint16_t bcount = MIN(epd->count, epsize);
+	usb->PMA.BUFDESC[epn].TxCount = bcount;
+
+	if (bcount)
+	{
+		epd->count -= bcount;
+		volatile uint16_t *dest = &usb->PMA.PMA[(usb->PMA.BUFDESC[epn].TxAddress) / 2];
+		const uint8_t *src = epd->ptr;
+		while (bcount)
+		{
+			uint16_t v = *src++;
+			if (--bcount)
+			{
+				v |= *src++ << 8;
+				--bcount;
+			}
+			*dest++ = v;
+		}
+		epd->ptr = (uint8_t *)src;
+	}
+}
+
+static void USBhw_StartTx(const struct usbdevice_ *usbd, uint8_t epn)
 {
 	epn &= EPNUMMSK;
     USBhw_WriteTxData(usbd, epn);
+    if (epn == 0 && usbd->inep[0].ptr && usbd->inep[0].count == 0)
+    {
+    	// last data packet sent over control ep - prepare for status out
+    	usbd->devdata->ep0state = USBD_EP0_STATUS_OUT;
+        USBhw_SetEPState(usbd, 0, USB_EPSTATE_VALID);
+    }
     USBhw_SetEPState(usbd, epn | 0x80, USB_EPSTATE_VALID);
 }
 
@@ -350,12 +357,6 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 		volatile uint32_t *epr = &usb->EPR[epn];
 		uint32_t eprv = *epr;
 
-		if (eprv & USB_EP_CTR_RX)	// data received on Out endpoint
-		{
-			USBhw_ReadRxData(usbd, epn);
-			*epr = (eprv & USB_EPR_CFG) | (USB_EPR_FLAGS & ~USB_EP_CTR_RX);		// clear CTR_RX
-			USBdev_OutEPHandler(usbd, epn, eprv & USB_EP_SETUP);
-		}
 		if (eprv & USB_EP_CTR_TX)	// data sent on In endpoint
 		{
 			*epr = (eprv & USB_EPR_CFG) | (USB_EPR_FLAGS & ~USB_EP_CTR_TX);		// clear CTR_TX
@@ -373,6 +374,12 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 			}
 			else	// In transfer completed
 				USBdev_InEPHandler(usbd, epn);
+		}
+		if (eprv & USB_EP_CTR_RX)	// data received on Out endpoint
+		{
+			USBhw_ReadRxData(usbd, epn);
+			*epr = (eprv & USB_EPR_CFG) | (USB_EPR_FLAGS & ~USB_EP_CTR_RX);		// clear CTR_RX
+			USBdev_OutEPHandler(usbd, epn, eprv & USB_EP_SETUP);
 		}
 	}
     if (istr & USB_ISTR_SUSP)	// suspend

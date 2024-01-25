@@ -396,12 +396,6 @@ void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 		uint8_t  epn = usb->ISTR & USB_ISTR_IDN;
 		volatile uint32_t *epr = &usb->EPR[epn];
 		uint32_t eprv = *epr;
-		if (eprv & USB_CHEP_VTRX)	// data received on Out endpoint
-		{
-			USBhw_ReadRxData(usbd, epn);
-			*epr = (eprv & USB_EPR_CFG) | (USB_EPR_FLAGS & ~USB_CHEP_VTRX);		// clear CTR_RX
-			USBdev_OutEPHandler(usbd, epn, eprv & USB_EP_SETUP);
-		}
 		if (eprv & USB_CHEP_VTTX)	// data sent on In endpoint
 		{
 			*epr = (eprv & USB_EPR_CFG) | (USB_EPR_FLAGS & ~USB_CHEP_VTTX);	// clear CTR_TX
@@ -419,6 +413,12 @@ void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 			}
 			else	// In transfer completed
 				USBdev_InEPHandler(usbd, epn);
+		}
+		if (eprv & USB_CHEP_VTRX)	// data received on Out endpoint
+		{
+			USBhw_ReadRxData(usbd, epn);
+			*epr = (eprv & USB_EPR_CFG) | (USB_EPR_FLAGS & ~USB_CHEP_VTRX);		// clear CTR_RX
+			USBdev_OutEPHandler(usbd, epn, eprv & USB_EP_SETUP);
 		}
 	}
     if (istr & USB_ISTR_SUSP)	// suspend
