@@ -1,7 +1,7 @@
 /* 
  * lightweight USB device stack by gbm
  * usb_dev.c - hardware-agnostic USB device core
- * Copyright (c) 2022 gbm
+ * Copyright (c) 2022..2024 gbm
  * 
  * This program is free software: you can redistribute it and/or modify  
  * it under the terms of the GNU General Public License as published by  
@@ -60,8 +60,8 @@ void USBdev_SendStatus(const struct usbdevice_ *usbd, const uint8_t *data, uint1
 {
 	usbd->devdata->ep0state = USBD_EP0_STATUS_IN;
 	USBdev_SendData(usbd, 0, data, length, zlp);
-	if (length)
-		usbd->hwif->EnableRx(usbd, 0);	// enable status Out
+//	if (length)
+//		usbd->hwif->EnableRx(usbd, 0);	// enable status Out
 	USBlog_storeresp(RSP_STATUS, length);
 }
 
@@ -156,6 +156,8 @@ static void USBdev_HandleRequest(const struct usbdevice_ *usbd)
 				epstatus = usbd->hwif->IsEPStalled(usbd, req->wIndex.b.l);
 				USBdev_SendStatus(usbd, (const uint8_t *)&epstatus, 2, 0);
 				break;
+			default:
+				USBdev_CtrlError(usbd);	// stall on unhandled requests
 			}
 			break;
 
@@ -243,43 +245,7 @@ void USBdev_InEPHandler(const struct usbdevice_ *usbd, uint8_t epn)
 			usbd->devdata->devstate = USBD_STATE_ADDRESSED;
 		}
 
-		usbd->hwif->SetEPStall(usbd, 0x80);
-		usbd->hwif->EnableCtlSetup(usbd);
-		usbd->devdata->ep0state = USBD_EP0_STATUS_OUT;
-		usbd->hwif->EnableRx(usbd, 0);	// bylo tylko to
 		USBlog_recordevt(0x80);
-	}
-}
-
-// setup packet received on Out endpoint
-void xUSBdev_SetupEPHandler(const struct usbdevice_ *usbd, uint8_t epn)
-{
-	if (epn == 0)	// control endpoint
-	{
-		if (usbd->outep[0].count == 8)
-		{
-			usbd->devdata->ep0state = USBD_EP0_SETUP;
-			// setup packet received - copy to setup packet buffer
-			USB_SetupPacket *req = &usbd->devdata->req;
-			*req = *(USB_SetupPacket *)usbd->outep[0].ptr;
-			USBlog_storerq(req);
-			if (req->bmRequestType.DirIn || req->wLength == 0)
-			{
-				//USBhw_SetEPStall(usbd, 0);	// stall Out data
-				USBdev_HandleRequest(usbd);
-			}
-			else
-			{
-				//USBhw_SetEPStall(usbd, 0x80);	// stall In data
-				usbd->hwif->EnableRx(usbd, 0);	// prepare for data out
-				usbd->devdata->ep0state = USBD_EP0_DATA_OUT;
-			}
-		}
-		else
-			usbd->hwif->SetEPStall(usbd, 0);
-	}
-	else // setup packet received on application endpoint
-	{
 	}
 }
 
@@ -292,47 +258,42 @@ void USBdev_OutEPHandler(const struct usbdevice_ *usbd, uint8_t epn, bool setup)
 		{
 			if (setup)
 			{
-				usbd->devdata->ep0state = USBD_EP0_SETUP;
 				// setup packet received - copy to setup packet buffer
 				USB_SetupPacket *req = &usbd->devdata->req;
 				*req = *(USB_SetupPacket *)usbd->outep[0].ptr;
 				USBlog_storerq(req);
 				if (req->bmRequestType.DirIn || req->wLength == 0)
 				{
-					USBdev_HandleRequest(usbd);
-					if (req->bmRequestType.DirIn)
-					{
-						//usbd->hwif->EnableRx(usbd, 0);	// prepare for data out
-						//usbd->devdata->ep0state = USBD_EP0_STATUS_OUT;
-					}
-					else
-						usbd->devdata->ep0state = USBD_EP0_SETUP;
+					usbd->devdata->ep0state = USBD_EP0_SETUP;
+					usbd->hwif->SetEPStall(usbd, 0);	// disable ep 0 data out
+					USBdev_HandleRequest(usbd);	// handle in request or no-data out request
 				}
 				else
 				{
-					usbd->hwif->EnableRx(usbd, 0);	// prepare for data out
+					// non-zero length data out request
 					usbd->devdata->ep0state = USBD_EP0_DATA_OUT;
+					usbd->hwif->SetEPStall(usbd, 0x80);	// disable ep 0 data in
+					usbd->hwif->EnableRx(usbd, 0);	// prepare for data out
 				}
 			}
 			else // data received on control EP
 			{
 				if (usbd->devdata->ep0state == USBD_EP0_DATA_OUT)
-					USBdev_HandleRequest(usbd);
-#if 0
-				else if (usbd->devdata->ep0state == USBD_EP0_STATUS_OUT)
+					USBdev_HandleRequest(usbd);	// data received
+				else	// should not happen - maybe should stall
 				{
 					usbd->devdata->ep0state = USBD_EP0_IDLE;
-					USBhw_SetEPStall(usbd, 0);
+					usbd->hwif->EnableCtlSetup(usbd);
 				}
-#endif
-				usbd->hwif->EnableCtlSetup(usbd);
-				usbd->devdata->ep0state = USBD_EP0_IDLE;
 			}
 		}
 		else
 		{
-			usbd->hwif->EnableCtlSetup(usbd);	// status out completed
-			usbd->devdata->ep0state = USBD_EP0_IDLE;
+			if (usbd->devdata->ep0state == USBD_EP0_STATUS_OUT)
+			{
+				usbd->devdata->ep0state = USBD_EP0_IDLE;
+				usbd->hwif->EnableCtlSetup(usbd);	// status out completed
+			}
 		}
 	}
 	else // data received on application endpoint

@@ -204,7 +204,7 @@ static void USBhw_EnableRx(const struct usbdevice_ *usbd, uint8_t epn)
 
 static void USBhw_EnableCtlSetup(const struct usbdevice_ *usbd)
 {
-	USBhw_SetEPState(usbd, 0, USB_EPSTATE_VALID);
+	//USBhw_SetEPState(usbd, 0, USB_EPSTATE_NAK);
 }
 
 // hardware setting for F1/G0/H5 series ep types - different from USB standard encoding!
@@ -231,10 +231,12 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 	addr += ep0size;
 	bufdesc[0].RxAddressCount.v = (union USB_BDesc_){.num_block = SetRxNumBlock(ep0size), .addr = addr}.v;
 	addr += ep0size;
-	usb->EPR[0] = USB_EPR_EPTYPE(0) | USB_EPR_STATRX(USB_EPSTATE_VALID) | USB_EPR_STATTX(USB_EPSTATE_NAK);
     usb->ISTR = 0;
     usb->DADDR = USB_DADDR_EF;
     usb->CNTR = USB_CNTR_CTRM | USB_CNTR_RESETM | USB_CNTR_SUSPM | USB_CNTR_SOFM;
+	usb->EPR[0] = USB_EPR_EPTYPE(0);// | USB_EPR_STATRX(USB_EPSTATE_VALID) | USB_EPR_STATTX(USB_EPSTATE_NAK);
+    uint32_t epstate = USB_EPR_STATRX(USB_EPSTATE_NAK) | USB_EPR_STATTX(USB_EPSTATE_NAK);
+	SetEPRState(usbd, 0, USB_EP_RX_STRX | USB_EP_TX_STTX | USB_EP_DTOG_TX | USB_EP_DTOG_RX, epstate);
 }
 
 // setup and enable app endpoints on set configuration request
@@ -333,6 +335,12 @@ static void USBhw_StartTx(const struct usbdevice_ *usbd, uint8_t epn)
 {
 	epn &= EPNUMMSK;
     USBhw_WriteTxData(usbd, epn);
+    if (epn == 0 && usbd->inep[0].ptr && usbd->inep[0].count == 0)
+    {
+    	// last data packet sent over control ep - prepare for status out
+    	usbd->devdata->ep0state = USBD_EP0_STATUS_OUT;
+        USBhw_SetEPState(usbd, 0, USB_EPSTATE_VALID);
+    }
     USBhw_SetEPState(usbd, epn | 0x80, USB_EPSTATE_VALID);
 }
 
