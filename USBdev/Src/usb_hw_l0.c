@@ -51,6 +51,8 @@ union rxcount_ {
 	uint16_t v;
 };
 
+#define CNT_INVALID	1023
+
 typedef volatile uint16_t PMAreg;
 
 struct USB_BufDesc_ {
@@ -179,7 +181,7 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 	uint8_t ep0size = cfg->devdesc->bMaxPacketSize0;
 	addr += ep0size;
 	bufdesc[0].RxAddress = addr;
-	bufdesc[0].RxCount.v = (union rxcount_){.num_block = SetRxNumBlock(ep0size)}.v;
+	bufdesc[0].RxCount.v = (union rxcount_){.num_block = SetRxNumBlock(ep0size), .count = CNT_INVALID}.v;
 	addr += ep0size;
     usb->ISTR = 0;
     usb->DADDR = USB_DADDR_EF;
@@ -208,7 +210,7 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
     	const struct USBdesc_ep_ *outd = USBdev_GetEPDescriptor(usbd, i);
 		uint16_t rxsize = outd ? getusb16(&outd->wMaxPacketSize) : 0;
 		bufdesc[i].RxAddress = addr;
-		bufdesc[i].RxCount.v = (union rxcount_){.num_block = SetRxNumBlock(rxsize)}.v;
+		bufdesc[i].RxCount.v = (union rxcount_){.num_block = SetRxNumBlock(rxsize), .count = CNT_INVALID}.v;
         addr += rxsize;
 
 //        epr[i] = i | USB_EPR_EPTYPE((ind ? ind->bmAttributes : 0) | (outd ? outd->bmAttributes : 0))
@@ -333,10 +335,17 @@ static void USBhw_ReadRxData(const struct usbdevice_ *usbd, uint8_t epn)
 {
 	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
 	
-	uint16_t bcount = usb->PMA.BUFDESC[epn].RxCount.count;
+	// count field in EP descriptor is updated with some delay (H503 errata), so do something else first
+	uint8_t *dst = usbd->outep[epn].ptr;
+	const volatile uint8_t *src = (const volatile uint8_t *)usb->PMA.PMA + usb->PMA.BUFDESC[epn].RxAddress;
+	uint16_t bcount;
+	// "wait for descriptor update"
+	while ((bcount = usb->PMA.BUFDESC[epn].RxCount.count) == CNT_INVALID) ;
 	usbd->outep[epn].count = bcount;
-	const uint8_t *src = (const uint8_t *)usb->PMA.PMA + usb->PMA.BUFDESC[epn].RxAddress;
-	memcpy(usbd->outep[epn].ptr, src, bcount);
+	//memcpy(usbd->outep[epn].ptr, src, bcount);
+	for (uint16_t i = 0; i < bcount; i++)
+		*dst++ = *src++;
+	usb->PMA.BUFDESC[epn].RxCount.count = CNT_INVALID;
 }
 
 static void USBhw_IRQHandler(const struct usbdevice_ *usbd)

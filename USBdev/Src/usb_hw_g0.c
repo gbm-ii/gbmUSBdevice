@@ -43,6 +43,8 @@ union USB_BDesc_ {
 	};
 };
 
+#define CNT_INVALID	1023
+
 struct USB_BufDesc_ {
 	volatile union USB_BDesc_ TxAddressCount;
 	volatile union USB_BDesc_ RxAddressCount;
@@ -229,7 +231,7 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 	bufdesc[0].TxAddressCount.v = addr;
 	uint8_t ep0size = cfg->devdesc->bMaxPacketSize0;
 	addr += ep0size;
-	bufdesc[0].RxAddressCount.v = (union USB_BDesc_){.num_block = SetRxNumBlock(ep0size), .addr = addr}.v;
+	bufdesc[0].RxAddressCount.v = (union USB_BDesc_){.num_block = SetRxNumBlock(ep0size), .addr = addr, .count = CNT_INVALID}.v;
 	addr += ep0size;
     usb->ISTR = 0;
     usb->DADDR = USB_DADDR_EF;
@@ -257,7 +259,7 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
     	const struct USBdesc_ep_ *outd = USBdev_GetEPDescriptor(usbd, i);
 		uint16_t rxsize = outd ? getusb16(&outd->wMaxPacketSize) : 0;
 		// do not remove .v from the line below!
-		bufdesc[i].RxAddressCount.v = (union USB_BDesc_){.num_block = SetRxNumBlock(rxsize), .addr = addr}.v;
+		bufdesc[i].RxAddressCount.v = (union USB_BDesc_){.num_block = SetRxNumBlock(rxsize), .addr = addr, .count = CNT_INVALID}.v;
         addr += rxsize;
 
 //        epr[i] = i | USB_EPR_EPTYPE((ind ? ind->bmAttributes : 0) | (outd ? outd->bmAttributes : 0))
@@ -352,12 +354,10 @@ static void USBhw_ReadRxData(const struct usbdevice_ *usbd, uint8_t epn)
 	// count field in EP descriptor is updated with some delay (H503 errata), so do something else first
 	uint8_t *dst = usbd->outep[epn].ptr;
 	const uint8_t *src = (const uint8_t *)usb->PMA + usb->BUFDESC[epn].RxAddressCount.addr;
-	const volatile uint32_t *srcw = (const uint32_t *)src;
-#ifdef STM32H503xx
-	// "wait for descriptor update" - ST HAL code uses loop here
-	for (volatile uint8_t i = 0; i < 10; i++) ;
-#endif
-	uint16_t bcount = usb->BUFDESC[epn].RxAddressCount.count;
+	const volatile uint32_t *srcw = (const volatile uint32_t *)src;
+	uint16_t bcount;
+	// "wait for descriptor update"
+	while ((bcount = usb->BUFDESC[epn].RxAddressCount.count) == CNT_INVALID) ;
 	usbd->outep[epn].count = bcount;
 	while (bcount)
 	{
@@ -377,6 +377,7 @@ static void USBhw_ReadRxData(const struct usbdevice_ *usbd, uint8_t epn)
 			}
 		}
 	}
+	usb->BUFDESC[epn].RxAddressCount.count = CNT_INVALID;
 }
 
 void USBhw_IRQHandler(const struct usbdevice_ *usbd)

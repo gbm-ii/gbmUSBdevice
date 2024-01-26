@@ -272,7 +272,8 @@ void USBdev_OutEPHandler(const struct usbdevice_ *usbd, uint8_t epn, bool setup)
 				{
 					// non-zero length data out request
 					usbd->devdata->ep0state = USBD_EP0_DATA_OUT;
-					usbd->hwif->SetEPStall(usbd, 0x80);	// disable ep 0 data in
+					// F0 fails with this line enabled, which is probably normal - Status In fails
+					//usbd->hwif->SetEPStall(usbd, 0x80);	// disable ep 0 data in
 					usbd->hwif->EnableRx(usbd, 0);	// prepare for data out
 				}
 			}
