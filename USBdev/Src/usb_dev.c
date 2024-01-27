@@ -265,7 +265,8 @@ void USBdev_OutEPHandler(const struct usbdevice_ *usbd, uint8_t epn, bool setup)
 				if (req->bmRequestType.DirIn || req->wLength == 0)
 				{
 					usbd->devdata->ep0state = USBD_EP0_SETUP;
-					usbd->hwif->SetEPStall(usbd, 0);	// disable ep 0 data out
+					// ok for F0, L0, wrong for F4
+					//usbd->hwif->SetEPStall(usbd, 0);	// disable ep 0 data out
 					USBdev_HandleRequest(usbd);	// handle in request or no-data out request
 				}
 				else
@@ -281,19 +282,20 @@ void USBdev_OutEPHandler(const struct usbdevice_ *usbd, uint8_t epn, bool setup)
 			{
 				if (usbd->devdata->ep0state == USBD_EP0_DATA_OUT)
 					USBdev_HandleRequest(usbd);	// data received
-				else	// should not happen - maybe should stall
+				else	// should not happen - maybe should stall ?
 				{
 					usbd->devdata->ep0state = USBD_EP0_IDLE;
-					usbd->hwif->EnableCtlSetup(usbd);
+					//usbd->hwif->EnableCtlSetup(usbd);
 				}
 			}
 		}
 		else
 		{
+			// zero-length status received
 			if (usbd->devdata->ep0state == USBD_EP0_STATUS_OUT)
 			{
 				usbd->devdata->ep0state = USBD_EP0_IDLE;
-				usbd->hwif->EnableCtlSetup(usbd);	// status out completed
+				//usbd->hwif->EnableCtlSetup(usbd);	// status out completed
 			}
 		}
 	}

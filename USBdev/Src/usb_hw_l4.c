@@ -31,6 +31,8 @@
 #include "usb_dev.h"
 #include "usb_hw_if.h"
 
+#define STUPCNT0	(3u << USB_OTG_DOEPTSIZ_STUPCNT_Pos)	// to be used for DOEPTSIZ0
+
 #define FIFO_WORDS	320u	// total FIFO memory size in 32-bit words
 
 #define USB_OTG_CORE_ID_300A          0x4F54300AU
@@ -183,7 +185,7 @@ static bool USBhw_IsEPStalled(const struct usbdevice_ *usbd, uint8_t epaddr)
 }
 
 /*
- * Endpoint deactivates itself when packet count is decremented to 0.
+ * Endpoint deactivates itself when packet count is decremented to 0 or setup phase is done.
  * Reception of setup packet sets NAK.
  */
 static void USBhw_EnableRx(const struct usbdevice_ *usbd, uint8_t epn)
@@ -192,8 +194,8 @@ static void USBhw_EnableRx(const struct usbdevice_ *usbd, uint8_t epn)
 	USB_OTG_OUTEndpointTypeDef *outep = &usb->OutEP[epn & EPNUMMSK];
 	outep->DOEPTSIZ = epn
 		? 1u << USB_OTG_DOEPTSIZ_PKTCNT_Pos | (outep->DOEPCTL & USB_OTG_DOEPCTL_MPSIZ_Msk)	// 1 packet, max. size
-		: 1u << USB_OTG_DOEPTSIZ_STUPCNT_Pos | 1u << USB_OTG_DOEPTSIZ_PKTCNT_Pos
-			| usbd->cfg->devdesc->bMaxPacketSize0;	// 1 data packet
+		: STUPCNT0 | 1u << USB_OTG_DOEPTSIZ_PKTCNT_Pos
+			| usbd->cfg->devdesc->bMaxPacketSize0;	// 1 data packet, get ready for setup as well
 	outep->DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
 }
 
@@ -202,14 +204,12 @@ static void USBhw_EnableCtlSetup(const struct usbdevice_ *usbd)
 	USB_OTG_TypeDef *usb = (USB_OTG_TypeDef *)usbd->usb;
 	//USB_OTG_GlobalTypeDef *usbg = &usb->Global;
 	USB_OTG_OUTEndpointTypeDef *outep = usb->OutEP;
-#if 0
+#if 1
 
-	if (usbg->GSNPSID <= USB_OTG_CORE_ID_300A || !(outep->DOEPCTL & USB_OTG_DOEPCTL_EPENA))
-		outep->DOEPTSIZ = USB_OTG_DOEPTSIZ_STUPCNT_Msk | 1u << USB_OTG_DOEPTSIZ_PKTCNT_Pos
-			| (3 * 8);	// 3 setup packets
+	//if (usbg->GSNPSID <= USB_OTG_CORE_ID_300A || !(outep->DOEPCTL & USB_OTG_DOEPCTL_EPENA))
+		outep->DOEPTSIZ = STUPCNT0 | (3 * 8);	// 3 setup packets
+		outep->DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
 #endif
-	//outep->DOEPCTL |= USB_OTG_DOEPCTL_STALL;
-	//outep->DOEPTSIZ = 1u << USB_OTG_DOEPTSIZ_STUPCNT_Pos | 1u << USB_OTG_DOEPTSIZ_PKTCNT_Pos | usbd->cfg->devdesc->bMaxPacketSize0;	// 3 setup packets
 }
 
 // EP Type hardware setting for L4 is the same as USB standard encoding
@@ -250,14 +250,13 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 	usbg->DIEPTXF0_HNPTXFSIZ = (ep0size / 4) << USB_OTG_DIEPTXF_INEPTXFD_Pos | rx_fifo_words;
 	usbg->GRSTCTL = USB_OTG_GRSTCTL_TXFNUM_4 | USB_OTG_GRSTCTL_TXFFLSH | USB_OTG_GRSTCTL_RXFFLSH;
 
-//	OutEP[0].DOEPTSIZ = USB_OTG_DOEPTSIZ_STUPCNT_Msk | 1u << USB_OTG_DOEPTSIZ_PKTCNT_Pos | (3 * 8);	// 3 setup packets
-	OutEP[0].DOEPTSIZ = 1u << USB_OTG_DOEPTSIZ_STUPCNT_Pos | 1u << USB_OTG_DOEPTSIZ_PKTCNT_Pos | ep0size;	// 3 setup packets
+	OutEP[0].DOEPTSIZ = STUPCNT0 | 1u << USB_OTG_DOEPTSIZ_PKTCNT_Pos | ep0size;	// 3 setup packets
 	// moved from EnumDone
 	USB_OTG_INEndpointTypeDef *InEP = usb->InEP;
-	ep0size = ep0siz_enc(ep0size);
-	InEP[0].DIEPCTL = USB_OTG_DIEPCTL_SNAK | USB_OTG_DIEPCTL_USBAEP | ep0size;	// EP size = 64
-	OutEP[0].DOEPCTL = USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_SNAK | ep0size;
-
+	uint8_t ep0encsize = ep0siz_enc(ep0size);
+	InEP[0].DIEPCTL = USB_OTG_DIEPCTL_SNAK | ep0encsize;	// EP size = 64
+	OutEP[0].DOEPCTL = USB_OTG_DOEPCTL_SNAK | ep0encsize;
+	// both ep0 are always active
 	// enable ints
 	usbg->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM | USB_OTG_GINTMSK_IEPINT | USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_SOFM;
 }
@@ -335,8 +334,8 @@ static void USBhw_ResetCfg(const struct usbdevice_ *usbd)
     for (uint8_t i = 1; i < cfg->numeppairs; i++)
 	{
     	// Fix!!! - correct DIEPCTL, DOEPCTL values
-    	InEP[i].DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
-    	OutEP[i].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
+    	InEP[i].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_SNAK;
+    	OutEP[i].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_SNAK;
     	struct epdata_ *epd = &usbd->inep[i];
     	epd->count = 0;
     	epd->sendzlp = 0;
@@ -388,6 +387,12 @@ static void USBhw_StartTx(const struct usbdevice_ *usbd, uint8_t epn)
 	USB_OTG_INEndpointTypeDef *inep = &usb->InEP[epn];
 	if (~inep->DIEPCTL & USB_OTG_DIEPCTL_EPENA && inep->DTXFSTS >= (bcount + 3) / 4)
 	{
+	    if (epn == 0 && usbd->inep[0].ptr && usbd->inep[0].count <= epsize)
+	    {
+	    	// last data packet sent over control ep - prepare for status out
+	    	usbd->devdata->ep0state = USBD_EP0_STATUS_OUT;
+	    	USBhw_EnableRx(usbd, 0);	// preapare for status out and next setup
+	    }
 		inep->DIEPTSIZ = 1u << USB_OTG_DIEPTSIZ_PKTCNT_Pos | bcount;	// single packet
 		inep->DIEPCTL = (inep->DIEPCTL & ~USB_OTG_DIEPCTL_STALL) | USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
 		if (bcount)
@@ -410,6 +415,7 @@ static void USBhw_StartTx(const struct usbdevice_ *usbd, uint8_t epn)
 			epd->ptr = (uint8_t *)src;
 			epd->count -= bcount;
 #endif
+
 		}
 	//	if (epd->count)
 	//		usb->Device.DIEPEMPMSK |= 1u << epn;
