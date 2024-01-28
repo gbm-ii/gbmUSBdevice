@@ -189,10 +189,10 @@ struct cdc_data_ {
 	bool signon_rq;
 	uint8_t connstart_timer;
 	uint16_t RxLength;
-	bool TxBuf;
+	//bool TxBuf;	// double buffer index - obsolete
 	volatile uint8_t TxLength;
 	uint8_t RxData[CDC_DATA_EP_SIZE];
-	uint8_t TxData[2][CDC_DATA_EP_SIZE];
+	uint8_t TxData[CDC_DATA_EP_SIZE];
 };
 
 struct cdc_services_ {

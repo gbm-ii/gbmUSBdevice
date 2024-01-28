@@ -17,9 +17,9 @@
  */
 
 // verified on F401, L476, L496, L4R5
-#if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4R5xx) || defined(STM32F401xC) || defined (STM32U575xx)
+#if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx) || defined(STM32F401xC) || defined (STM32U575xx)
 
-#if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4R5xx)
+#if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx)
 #ifndef STM32L4
 #define STM32L4
 #endif
@@ -255,7 +255,7 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 	USB_OTG_INEndpointTypeDef *InEP = usb->InEP;
 	uint8_t ep0encsize = ep0siz_enc(ep0size);
 	InEP[0].DIEPCTL = USB_OTG_DIEPCTL_SNAK | ep0encsize;	// EP size = 64
-	OutEP[0].DOEPCTL = USB_OTG_DOEPCTL_SNAK | ep0encsize;
+	OutEP[0].DOEPCTL = USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK | ep0encsize;
 	// both ep0 are always active
 	// enable ints
 	usbg->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM | USB_OTG_GINTMSK_IEPINT | USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_SOFM;
@@ -299,7 +299,7 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 			usbg->GRSTCTL = i << USB_OTG_GRSTCTL_TXFNUM_Pos | USB_OTG_GRSTCTL_TXFFLSH;
 			InEP[i].DIEPCTL = USB_OTG_DIEPCTL_SD0PID_SEVNFRM | i << USB_OTG_DIEPCTL_TXFNUM_Pos
 				| ind->bmAttributes << USB_OTG_DIEPCTL_EPTYP_Pos
-				| USB_OTG_DIEPCTL_USBAEP | txsize;
+				| USB_OTG_DIEPCTL_SNAK | USB_OTG_DIEPCTL_USBAEP | txsize;
 			usbdp->DAINTMSK |= 1u << i << USB_OTG_DAINTMSK_IEPM_Pos;
 			addr += fifosize;
 		}
@@ -334,7 +334,7 @@ static void USBhw_ResetCfg(const struct usbdevice_ *usbd)
     for (uint8_t i = 1; i < cfg->numeppairs; i++)
 	{
     	// Fix!!! - correct DIEPCTL, DOEPCTL values
-    	InEP[i].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_SNAK;
+    	InEP[i].DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
     	OutEP[i].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_SNAK;
     	struct epdata_ *epd = &usbd->inep[i];
     	epd->count = 0;
@@ -387,11 +387,20 @@ static void USBhw_StartTx(const struct usbdevice_ *usbd, uint8_t epn)
 	USB_OTG_INEndpointTypeDef *inep = &usb->InEP[epn];
 	if (~inep->DIEPCTL & USB_OTG_DIEPCTL_EPENA && inep->DTXFSTS >= (bcount + 3) / 4)
 	{
-	    if (epn == 0 && usbd->inep[0].ptr && usbd->inep[0].count <= epsize)
+	    if (epn == 0)
 	    {
-	    	// last data packet sent over control ep - prepare for status out
-	    	usbd->devdata->ep0state = USBD_EP0_STATUS_OUT;
-	    	USBhw_EnableRx(usbd, 0);	// preapare for status out and next setup
+	    	if (usbd->inep[0].ptr == 0)
+	    	{
+	    		// status in, prepare for setup Out
+	    		usbd->devdata->ep0state = USBD_EP0_IDLE;
+	    		USBhw_EnableCtlSetup(usbd);	// the only call
+	    	}
+	    	else if (usbd->inep[0].count <= epsize)
+	    	{
+				// last data packet being sent over control ep - prepare for status out
+				usbd->devdata->ep0state = USBD_EP0_STATUS_OUT;
+				USBhw_EnableRx(usbd, 0);	// prepare for status out and next setup
+	    	}
 	    }
 		inep->DIEPTSIZ = 1u << USB_OTG_DIEPTSIZ_PKTCNT_Pos | bcount;	// single packet
 		inep->DIEPCTL = (inep->DIEPCTL & ~USB_OTG_DIEPCTL_STALL) | USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;

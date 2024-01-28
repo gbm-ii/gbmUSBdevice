@@ -66,6 +66,7 @@ static _Alignas(USB_SetupPacket) uint8_t ep0outpkt[USBD_CTRL_EP_SIZE];	// Contro
 
 static struct epdata_ out_epdata[USBD_NUM_EPPAIRS] = {
 	{.ptr = ep0outpkt, .count = 0},	// control
+#if USBD_CDC_CHANNELS
 	{.ptr = 0, .count = 0},	// unused
 	{.ptr = cdc_data[0].RxData, .count = 0},
 #if USBD_CDC_CHANNELS > 1
@@ -78,8 +79,9 @@ static struct epdata_ out_epdata[USBD_NUM_EPPAIRS] = {
 	{.ptr = 0, .count = 0},	// unused
 #endif
 	{.ptr = cdc_data[2].RxData, .count = 0},
-#endif
-#endif
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
+#endif	// USBD_CDC_CHANNELS
 #if USBD_PRINTER
 	{.ptr = prnRxData, .count = 0},
 #endif
@@ -88,6 +90,7 @@ static struct epdata_ out_epdata[USBD_NUM_EPPAIRS] = {
 static struct epdata_ in_epdata[USBD_NUM_EPPAIRS]; // no need to init
 //========================================================================
 
+#if USBD_CDC_CHANNELS
 struct vcomcfg_ {
 	uint8_t rx_irqn, tx_irqn;
 	const char *signon, *prompt;
@@ -99,10 +102,12 @@ const struct vcomcfg_ vcomcfg[USBD_CDC_CHANNELS] = {
 	{VCOM1_rx_IRQn, VCOM1_tx_IRQn, SIGNON1},
 #if USBD_CDC_CHANNELS > 2
 	{VCOM2_rx_IRQn, VCOM2_tx_IRQn, SIGNON2},
-#endif
-#endif
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
 };
+#endif	// USBD_CDC_CHANNELS
 
+#if USBD_CDC_CHANNELS
 // put character into sendbuf, generate send packet request event
 void vcom_putchar(uint8_t ch, char c)
 {
@@ -115,7 +120,7 @@ void vcom_putchar(uint8_t ch, char c)
 		if (cdp->connected)
 		{
 			__disable_irq();
-			cdp->TxData[cdp->TxBuf][cdp->TxLength++] = c;
+			cdp->TxData[cdp->TxLength++] = c;
 			__enable_irq();
 			NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);
 		}
@@ -139,6 +144,7 @@ void vcom0_putstring(const char *s)
 	vcom_putstring(0, s);
 }
 
+#if USBD_CDC_CHANNELS > 1
 void vcom1_putc(uint8_t c)
 {
 	vcom_putchar(1, c);
@@ -149,13 +155,29 @@ void vcom1_putstring(const char *s)
 	vcom_putstring(1, s);
 }
 
+#if USBD_CDC_CHANNELS > 2
+void vcom2_putc(uint8_t c)
+{
+	vcom_putchar(2, c);
+}
+
+void vcom2_putstring(const char *s)
+{
+	vcom_putstring(2, s);
+}
+
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
+#endif	// USBD_CDC_CHANNELS
+
 // return 1 if prompt requested
 __attribute__ ((weak)) bool process_input(uint8_t ch, uint8_t c)
 {
+#if USBD_CDC_CHANNELS
 	vcom_putchar(ch, c);	// echo to the same channel
+#endif
 	return 0;
 }
-
 // forward declaration
 const struct usbdevice_ usbdev;
 
@@ -179,6 +201,28 @@ void PRN_rx_IRQHandler(void)
 	}
 }
 #endif
+
+//========================================================================
+// called from USB interrupt at 1 kHz (SOF)
+void usbdev_tick(void)
+{
+#if USBD_CDC_CHANNELS
+	static uint16_t dt;
+	if ((++dt & 0x3ff) == 0)
+	{
+		cdc_data[0].SerialState = dt >> 10 & 3;
+		//send_serialstate_notif(0);
+	}
+	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
+		if (cdc_data[ch].connstart_timer && --cdc_data[ch].connstart_timer == 0)
+		{
+			cdc_data[ch].connected = 1;
+			cdc_data[ch].signon_rq = 1;
+			NVIC_SetPendingIRQ(vcomcfg[ch].rx_irqn);
+			NVIC_EnableIRQ(vcomcfg[ch].tx_irqn);
+		}
+#endif
+}
 
 #if USBD_CDC_CHANNELS
 void cdc_LineStateHandler(const struct usbdevice_ *usbd, uint8_t ch)
@@ -215,30 +259,7 @@ static void send_serialstate_notif(uint8_t ch)
 		(const uint8_t *)&ssnotif, sizeof(ssnotif), 0);
 	cdc_data[ch].SerialState &= CDC_SERIAL_STATE_TX_CARRIER | CDC_SERIAL_STATE_RX_CARRIER;	// reset other flags
 }
-#endif
-//========================================================================
-// called from USB interrupt at 1 kHz (SOF)
-void usbdev_tick(void)
-{
-#if USBD_CDC_CHANNELS
-	static uint16_t dt;
-	if ((++dt & 0x3ff) == 0)
-	{
-		cdc_data[0].SerialState = dt >> 10 & 3;
-		//send_serialstate_notif(0);
-	}
-	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
-		if (cdc_data[ch].connstart_timer && --cdc_data[ch].connstart_timer == 0)
-		{
-			cdc_data[ch].connected = 1;
-			cdc_data[ch].signon_rq = 1;
-			NVIC_SetPendingIRQ(vcomcfg[ch].rx_irqn);
-			NVIC_EnableIRQ(vcomcfg[ch].tx_irqn);
-		}
-#endif
-}
 
-#if USBD_CDC_CHANNELS
 // data reception and state change handler, priority lower than USB hw interrupt
 void VCOM_rx_IRQHandler(uint8_t ch)
 {
@@ -287,8 +308,8 @@ void VCOM_tx_IRQHandler(uint8_t ch)
 	{
 		NVIC_DisableIRQ(vcomcfg[ch].tx_irqn);
 		USBdev_SendData(&usbdev, ConfigDesc.cdc[ch].cdcdesc.cdcin.bEndpointAddress,
-			cdp->TxData[cdp->TxBuf], cdp->TxLength, 1);
-		cdp->TxBuf ^= 1;	// switch buffer
+			cdp->TxData, cdp->TxLength, 1);
+		//cdp->TxBuf ^= 1;	// switch buffer
 		cdp->TxLength = 0;	// clear counter
 	}
 }
@@ -345,6 +366,7 @@ void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
 		{
 			switch (epn)
 			{
+#if USBD_CDC_CHANNELS
 			case CDC0_DATA_OUT_EP:
 				cdc_data[0].RxLength = length;
 				NVIC_SetPendingIRQ(VCOM0_rx_IRQn);
@@ -359,8 +381,9 @@ void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
 				cdc_data[2].RxLength = length;
 				NVIC_SetPendingIRQ(VCOM2_rx_IRQn);
 				break;
-#endif
-#endif
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
+#endif	// USBD_CDC_CHANNELS
 #if USBD_PRINTER
 			case PRN_DATA_OUT_EP:
 				prnRxLen = length;
@@ -380,6 +403,7 @@ void DataSentHandler(const struct usbdevice_ *usbd, uint8_t epn)
 //	LED_Toggle();
 	switch (epn)
 	{
+#if USBD_CDC_CHANNELS
 	case CDC0_DATA_IN_EP:
 		NVIC_EnableIRQ(VCOM0_tx_IRQn);
 		break;
@@ -391,8 +415,9 @@ void DataSentHandler(const struct usbdevice_ *usbd, uint8_t epn)
 	case CDC2_DATA_IN_EP:
 		NVIC_EnableIRQ(VCOM2_tx_IRQn);
 		break;
-#endif
-#endif
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
+#endif	// USBD_CDC_CHANNELS
 	default:
 
 	}
@@ -517,6 +542,7 @@ static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc = {
 #if USBD_MSC
 	.msc = MSCBOTSCSIDESC(IFNUM_MSC, MSC_BOT_IN_EP, MSC_BOT_OUT_EP, USBD_SIDX_FUN_MSC),
 #endif
+#if USBD_CDC_CHANNELS
 	.cdc = {
 		[0] = {
 			.cdciad = CDCVCOMIAD(IFNUM_CDC0_CONTROL, USBD_SIDX_FUN_VCOM0),
@@ -527,8 +553,15 @@ static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc = {
 			.cdciad = CDCVCOMIAD(IFNUM_CDC1_CONTROL, USBD_SIDX_FUN_VCOM1),
 			.cdcdesc = CDCVCOMDESC(IFNUM_CDC1_CONTROL, CDC1_INT_IN_EP, CDC1_DATA_IN_EP, CDC1_DATA_OUT_EP)
 		},
-#endif
+#if USBD_CDC_CHANNELS > 2
+		[2] = {
+			.cdciad = CDCVCOMIAD(IFNUM_CDC2_CONTROL, USBD_SIDX_FUN_VCOM2),
+			.cdcdesc = CDCVCOMDESC(IFNUM_CDC2_CONTROL, CDC2_INT_IN_EP, CDC2_DATA_IN_EP, CDC2_DATA_OUT_EP)
+		},
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
 	},
+#endif	// USBD_CDC_CHANNELS
 #if USBD_PRINTER
 	.prn = {
 		.prnifdesc = IFDESC(IFNUM_PRN, 1, USB_CLASS_PRINTER, PRN_SUBCLASS_PRINTER, PRN_PROTOCOL_UNIDIR, USBD_SIDX_PRINTER),
@@ -567,6 +600,7 @@ static const struct epcfg_ incfg[USBD_NUM_EPPAIRS] = {
 	{.ifidx = 0, .handler = 0},
 #if USBD_MSC
 #endif
+#if USBD_CDC_CHANNELS
 	{.ifidx = IFNUM_CDC0_CONTROL, .handler = 0},
 	{.ifidx = IFNUM_CDC0_DATA, .handler = DataSentHandler},
 #if USBD_CDC_CHANNELS > 1
@@ -579,8 +613,9 @@ static const struct epcfg_ incfg[USBD_NUM_EPPAIRS] = {
 	{.ifidx = IFNUM_CDC2_CONTROL, .handler = 0},
 #endif
 	{.ifidx = IFNUM_CDC2_DATA, .handler = DataSentHandler},
-#endif
-#endif
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
+#endif	// USBD_CDC_CHANNELS
 #if USBD_PRINTER
 	{.ifidx = IFNUM_PRN, .handler = DataSentHandler},
 #endif
@@ -591,6 +626,7 @@ const struct ifassoc_ if2fun[USBD_NUM_INTERFACES] = {
 #if USBD_MSC
 	[IFNUM_MSC] = {.classid = USB_CLASS_STORAGE, .funidx = 0},
 #endif
+#if USBD_CDC_CHANNELS
 	[IFNUM_CDC0_CONTROL] = {.classid = USB_CLASS_COMMUNICATIONS, .funidx = 0},
 	[IFNUM_CDC0_DATA] = {.classid = USB_CLASS_COMMUNICATIONS, .funidx = 0},
 #if USBD_CDC_CHANNELS > 1
@@ -599,8 +635,9 @@ const struct ifassoc_ if2fun[USBD_NUM_INTERFACES] = {
 #if USBD_CDC_CHANNELS > 2
 	[IFNUM_CDC2_CONTROL] = {.classid = USB_CLASS_COMMUNICATIONS, .funidx = 2},
 	[IFNUM_CDC2_DATA] = {.classid = USB_CLASS_COMMUNICATIONS, .funidx = 2},
-#endif
-#endif
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
+#endif	// USBD_CDC_CHANNELS
 #if USBD_PRINTER
 	[IFNUM_PRN] = {.classid = USB_CLASS_PRINTER, .funidx = 0},
 #endif
@@ -609,7 +646,7 @@ const struct ifassoc_ if2fun[USBD_NUM_INTERFACES] = {
 // device config options and descriptors - constant ======================
 static const struct usbdcfg_ usbdcfg = {
 	.irqn = USB_IRQn,
-	.irqpri = 8,
+	.irqpri = USB_IRQ_PRI,
 	.numeppairs = USBD_NUM_EPPAIRS,
 	.numif = USBD_NUM_INTERFACES,
 	.nstringdesc = USBD_NSTRINGDESCS,
@@ -654,8 +691,13 @@ void USBapp_Init(void)
 	NVIC_SetPriority(VCOM1_tx_IRQn, USB_IRQ_PRI);
 	NVIC_SetPriority(VCOM1_rx_IRQn, USB_IRQ_PRI + 1);
 	NVIC_EnableIRQ(VCOM1_rx_IRQn);
-#endif
-#endif
+#if USBD_CDC_CHANNELS > 2
+	NVIC_SetPriority(VCOM2_tx_IRQn, USB_IRQ_PRI);
+	NVIC_SetPriority(VCOM2_rx_IRQn, USB_IRQ_PRI + 1);
+	NVIC_EnableIRQ(VCOM2_rx_IRQn);
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
+#endif	// USBD_CDC_CHANNELS
 
 #if USBD_PRINTER
 	NVIC_SetPriority(PRN_rx_IRQn, USB_IRQ_PRI + 1);

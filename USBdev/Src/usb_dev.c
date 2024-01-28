@@ -60,8 +60,6 @@ void USBdev_SendStatus(const struct usbdevice_ *usbd, const uint8_t *data, uint1
 {
 	usbd->devdata->ep0state = USBD_EP0_STATUS_IN;
 	USBdev_SendData(usbd, 0, data, length, zlp);
-//	if (length)
-//		usbd->hwif->EnableRx(usbd, 0);	// enable status Out
 	USBlog_storeresp(RSP_STATUS, length);
 }
 
