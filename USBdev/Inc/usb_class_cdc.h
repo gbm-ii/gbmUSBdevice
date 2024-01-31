@@ -191,6 +191,7 @@ struct cdc_data_ {
 	uint16_t RxLength;
 	//bool TxBuf;	// double buffer index - obsolete
 	volatile uint8_t TxLength;
+	uint8_t TxTout;
 	uint8_t RxData[CDC_DATA_EP_SIZE];
 	uint8_t TxData[CDC_DATA_EP_SIZE];
 };

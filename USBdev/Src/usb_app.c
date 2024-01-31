@@ -39,6 +39,8 @@ static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc;
 #define SIGNON2	"\r\nVCOM2 ready\r\n"
 #define PROMPT	">"
 
+#define TX_TOUT	2u	// Tx timeout when buffer not empty in ms
+
 void LED_Toggle(void);	// in main.c
 //========================================================================
 // VCOM channel data
@@ -51,10 +53,10 @@ static struct cdc_data_ cdc_data[USBD_CDC_CHANNELS] = {
 	[1] = {.LineCoding = {.dwDTERate = 115200, .bDataBits = 8}},
 #if USBD_CDC_CHANNELS > 2
 	[2] = {.LineCoding = {.dwDTERate = 115200, .bDataBits = 8}},
-#endif
-#endif
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
 };
-#endif
+#endif	// USBD_CDC_CHANNELS
 
 #if USBD_PRINTER
 static uint8_t prnRxData[PRN_DATA_EP_SIZE];	// data buffer
@@ -115,14 +117,20 @@ void vcom_putchar(uint8_t ch, char c)
 	{
 		struct cdc_data_ *cdp = &cdc_data[ch];
 
-		while (cdp->connected && cdp->TxLength == CDC_DATA_EP_SIZE);	// buffer full -> wait
+		while (cdp->connected && cdp->TxLength == CDC_DATA_EP_SIZE) ;	// buffer full -> wait
 
 		if (cdp->connected)
 		{
 			__disable_irq();
 			cdp->TxData[cdp->TxLength++] = c;
+			if (cdp->TxLength == CDC_DATA_EP_SIZE)
+			{
+				cdp->TxTout = 0;
+				NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);
+			}
+			else
+				cdp->TxTout = TX_TOUT;
 			__enable_irq();
-			NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);
 		}
 	}
 }
@@ -214,6 +222,7 @@ void usbdev_tick(void)
 		//send_serialstate_notif(0);
 	}
 	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
+	{
 		if (cdc_data[ch].connstart_timer && --cdc_data[ch].connstart_timer == 0)
 		{
 			cdc_data[ch].connected = 1;
@@ -221,6 +230,11 @@ void usbdev_tick(void)
 			NVIC_SetPendingIRQ(vcomcfg[ch].rx_irqn);
 			NVIC_EnableIRQ(vcomcfg[ch].tx_irqn);
 		}
+		if (cdc_data[ch].TxTout && --cdc_data[ch].TxTout == 0)
+		{
+			NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);
+		}
+	}
 #endif
 }
 
@@ -304,12 +318,13 @@ void VCOM_tx_IRQHandler(uint8_t ch)
 {
 	struct cdc_data_ *cdp = &cdc_data[ch];
 
-	if (cdp->TxLength)
+	NVIC_DisableIRQ(vcomcfg[ch].tx_irqn);
+//	if (cdp->TxLength)
 	{
-		NVIC_DisableIRQ(vcomcfg[ch].tx_irqn);
+		if (cdp->TxLength == CDC_DATA_EP_SIZE)
+			NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);	// another packet must follow, data or ZLP
 		USBdev_SendData(&usbdev, ConfigDesc.cdc[ch].cdcdesc.cdcin.bEndpointAddress,
-			cdp->TxData, cdp->TxLength, 1);
-		//cdp->TxBuf ^= 1;	// switch buffer
+			cdp->TxData, cdp->TxLength, 0);
 		cdp->TxLength = 0;	// clear counter
 	}
 }
@@ -477,6 +492,7 @@ static const uint8_t * const strdescv[USBD_NSTRINGDESCS] = {
 	&sdPrinter.bLength,
 #endif
 };
+
 #if 0
 // device descriptor for single function CDC ACM
 static const struct USBdesc_device_ DevDesc = {

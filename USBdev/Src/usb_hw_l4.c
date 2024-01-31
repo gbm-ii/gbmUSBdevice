@@ -597,7 +597,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 #endif
     			if (diepintv & USB_OTG_DIEPINT_EPDISD)
     			{
-    				while (usbg->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH);
+    				while (usbg->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH) ;
     				usbg->GRSTCTL = USB_OTG_GRSTCTL_TXFFLSH | epn << USB_OTG_GRSTCTL_TXFNUM_Pos;
     				*diepint = USB_OTG_DIEPINT_EPDISD;
     			}
