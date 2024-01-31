@@ -133,9 +133,10 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
 // set device address
 static void USBhw_SetAddress(const struct usbdevice_ *usbd)
 {
-	USB_OTG_TypeDef *usb = (USB_OTG_TypeDef *)usbd->usb;
-	USB_OTG_DeviceTypeDef *usbdp = &usb->Device;
-	usbdp->DCFG |= usbd->devdata->setaddress << USB_OTG_DCFG_DAD_Pos;
+	//USB_OTG_TypeDef *usb = (USB_OTG_TypeDef *)usbd->usb;
+	//USB_OTG_DeviceTypeDef *usbdp = &usb->Device;
+	//usbdp->DCFG |= usbd->devdata->setaddress << USB_OTG_DCFG_DAD_Pos;
+	//usbd->devdata->setaddress = 0;
 }
 
 // L4 specific
@@ -392,6 +393,12 @@ static void USBhw_StartTx(const struct usbdevice_ *usbd, uint8_t epn)
 	    	if (usbd->inep[0].ptr == 0)
 	    	{
 	    		// status in, prepare for setup Out
+	    		if (usbd->devdata->setaddress)
+	    		{
+	    			// OTG: set address before status In
+	    			USB_OTG_DeviceTypeDef *usbdp = &usb->Device;
+	    			usbdp->DCFG |= usbd->devdata->setaddress << USB_OTG_DCFG_DAD_Pos;
+	    		}
 	    		usbd->devdata->ep0state = USBD_EP0_IDLE;
 	    		USBhw_EnableCtlSetup(usbd);	// the only call
 	    	}

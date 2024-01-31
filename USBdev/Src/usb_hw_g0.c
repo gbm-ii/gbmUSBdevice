@@ -104,7 +104,7 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
 static void USBhw_SetAddress(const struct usbdevice_ *usbd)
 {
 	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
-	usb->DADDR = usbd->devdata->setaddress | USB_DADDR_EF;
+	//usb->DADDR = usbd->devdata->setaddress | USB_DADDR_EF;
 }
 
 static inline uint16_t GetRxBufSize(uint8_t block)
@@ -413,7 +413,11 @@ void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 				USBhw_StartTx(usbd, epn);
 			}
 			else	// In transfer completed
+			{
+				if (epn == 0 && usbd->devdata->setaddress)
+					usb->DADDR = usbd->devdata->setaddress | USB_DADDR_EF;
 				USBdev_InEPHandler(usbd, epn);
+			}
 		}
 		if (eprv & USB_CHEP_VTRX)	// data received on Out endpoint
 		{

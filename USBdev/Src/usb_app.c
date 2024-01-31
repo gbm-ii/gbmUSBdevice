@@ -211,9 +211,12 @@ void PRN_rx_IRQHandler(void)
 #endif
 
 //========================================================================
+uint32_t msec;
+
 // called from USB interrupt at 1 kHz (SOF)
 void usbdev_tick(void)
 {
+	++msec;
 #if USBD_CDC_CHANNELS
 	static uint16_t dt;
 	if ((++dt & 0x3ff) == 0)
@@ -369,7 +372,7 @@ void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
 	uint16_t length = usbd->outep[epn].count;
 	if (length)
 	{
-#ifdef USBLOG
+#ifdef xUSBLOG
 		if (epn == CDC0_DATA_OUT_EP && *cdc0RxData == 'l')
 		{
 			char s[80];
