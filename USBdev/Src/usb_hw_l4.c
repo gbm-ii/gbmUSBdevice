@@ -22,6 +22,7 @@
 #if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx)
 #ifndef STM32L4
 #define STM32L4
+#define NEW_OTG
 #endif
 #endif
 
@@ -50,6 +51,7 @@
 //        USBx_OUTEP(i)->DOEPINT = 0xFB7FU;
 
 #if defined (STM32U575xx)
+#define NEW_OTG
 // software-friendly USB peripheral reg definition F4/L4
 #define USB_OTG_INEndpointTypeDef _INEndpointTypeDef
 #define USB_OTG_OUTEndpointTypeDef _OUTEndpointTypeDef
@@ -240,7 +242,7 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 		OutEP[i].DOEPCTL = USB_OTG_DOEPCTL_SNAK;
 
 	usbdp->DAINTMSK = 1u << USB_OTG_DAINTMSK_OEPM_Pos | 1u << USB_OTG_DAINTMSK_IEPM_Pos;
-	//usbdp->DOEPMSK = USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
+	usbdp->DOEPMSK = USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
 	usbdp->DIEPMSK = USB_OTG_DIEPMSK_EPDM | USB_OTG_DIEPMSK_XFRCM;
 
 	USB_OTG_GlobalTypeDef *usbg = &usb->Global;
@@ -518,13 +520,13 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
    			USBhw_ReadRxData(usbd, epn, size);	// sets received size, maybe to 0
     		break;
     	case PKTSTS_OUTCPLT:
-			USBdev_OutEPHandler(usbd, epn, 0);
+			//USBdev_OutEPHandler(usbd, epn, 0);
     		break;
     	case PKTSTS_STPREC:
    			USBhw_ReadRxData(usbd, epn, size);
     		break;
     	case PKTSTS_STPCPLT:
-			USBdev_OutEPHandler(usbd, epn, 1);
+			//USBdev_OutEPHandler(usbd, epn, 1);
     		break;
     	default:
     		;
@@ -539,21 +541,36 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
     		{
     			volatile uint32_t *doepint = &usb->OutEP[epn].DOEPINT;
     			uint32_t doepintv = *doepint;
-#if 0
+#if 1
     			// handle XFRC, STUP, and EP disable
     			if (doepintv & USB_OTG_DOEPINT_XFRC)
     			{
     				*doepint = USB_OTG_DOEPINT_XFRC;
-    				if (usbg->GSNPSID == USB_OTG_CORE_ID_310A && (doepintv & USB_OTG_DOEPINT_STPKTRX))
-    					*doepint = USB_OTG_DOEPINT_STPKTRX;
+#ifdef NEW_OTG
+    				if (usbg->GSNPSID == USB_OTG_CORE_ID_310A)
+    				{
+    					if (doepintv & USB_OTG_DOEPINT_STPKTRX)
+							*doepint = USB_OTG_DOEPINT_STPKTRX;
+    					else
+    					{
+    						if (doepintv & USB_OTG_DOEPINT_OTEPSPR)
+    							*doepint = USB_OTG_DOEPINT_OTEPSPR;
+
+        					USBdev_OutEPHandler(usbd, epn, 0);
+    					}
+    				}
     				else
+#endif
     					USBdev_OutEPHandler(usbd, epn, 0);
     			}
+
     			if (doepintv & USB_OTG_DOEPINT_STUP)
     			{
     				*doepint = USB_OTG_DOEPINT_STUP;
+#ifdef NEW_OTG
     				if (usbg->GSNPSID > USB_OTG_CORE_ID_300A && (doepintv & USB_OTG_DOEPINT_STPKTRX))
     					*doepint = USB_OTG_DOEPINT_STPKTRX;
+#endif
 
     				USBdev_OutEPHandler(usbd, epn, 1);
     			}
@@ -565,6 +582,15 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 						usb->Device.DCTL |= USB_OTG_DCTL_CGONAK;
 					}
     				*doepint = USB_OTG_DOEPINT_EPDISD;
+    			}
+
+    			if (doepintv & USB_OTG_DOEPINT_OTEPSPR)
+    			{
+    				*doepint = USB_OTG_DOEPINT_OTEPSPR;
+    			}
+    			if (doepintv & USB_OTG_DOEPINT_NAK)
+    			{
+    				*doepint = USB_OTG_DOEPINT_NAK;
     			}
     		}
 	}
