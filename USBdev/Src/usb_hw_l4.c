@@ -524,7 +524,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
    			USBhw_ReadRxData(usbd, epn, size);
     		break;
     	case PKTSTS_STPCPLT:
-			USBdev_OutEPHandler(usbd, epn, 1); // wrong operation if moved under STPREC
+			USBdev_OutEPHandler(usbd, epn, 1);
     		break;
     	default:
     		;

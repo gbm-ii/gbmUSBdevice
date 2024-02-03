@@ -274,7 +274,7 @@ void USBhw_Init(const struct usbdevice_ *usbd)
 // set device address
 static void USBhw_SetAddress(const struct usbdevice_ *usbd)
 {
-	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
+	//USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
 	//usb->DADDR = usbd->devdata->setaddress | USB_DADDR_EF;
 }
 

@@ -132,7 +132,6 @@ static void USBdev_HandleRequest(const struct usbdevice_ *usbd)
 		{
 		case USB_STDRQ_SET_ADDRESS:
 			usbd->devdata->setaddress = req->wValue.b.l;
-			usbd->hwif->SetAddress(usbd);	// may set address immediately or after status in
 			USBdev_SendStatusOK(usbd);
 			break;
 
@@ -239,7 +238,6 @@ void USBdev_InEPHandler(const struct usbdevice_ *usbd, uint8_t epn)
 		if (usbd->devdata->setaddress)
 		{
 			USBlog_recordevt(0x40);
-			//usbd->hwif->SetAddress(usbd);
 			usbd->devdata->setaddress = 0;
 			usbd->devdata->devstate = USBD_STATE_ADDRESSED;
 		}
