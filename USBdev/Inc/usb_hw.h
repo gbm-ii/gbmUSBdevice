@@ -81,6 +81,20 @@ extern const struct USBhw_services_ g0_fs_services;
 #define USB_BASE	USB_DRD_FS_BASE
 #define USB_PMA_OFFSET ((USB_DRD_PMAADDR_NS) - (USB_DRD_BASE_NS))
 
+#elif defined(STM32U535xx) || defined(STM32U545xx)
+#include "stm32u5xx.h"
+// like G0B1
+#define USB_NEPPAIRS	8u	// no. of endpoint pairs supported by hardware
+#define EPNUMMSK	7u
+extern const struct USBhw_services_ g0_fs_services;
+#define usb_hw_services	g0_fs_services
+
+//#define USB_IRQn	USB_DRD_FS_IRQn
+//#define USB_IRQHandler	USB_DRD_FS_IRQHandler
+
+#define USB_BASE	USB_DRD_BASE_NS
+#define USB_PMA_OFFSET ((USB_DRD_PMAADDR_NS) - (USB_DRD_BASE_NS))
+
 #elif defined(STM32F401xC)
 #include "stm32f4xx.h"
 #define USB_NEPPAIRS	4u	// no. of endpoint pairs supported by hardware

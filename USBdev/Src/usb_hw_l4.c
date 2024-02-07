@@ -37,7 +37,8 @@
 #define FIFO_WORDS	320u	// total FIFO memory size in 32-bit words
 
 #define USB_OTG_CORE_ID_300A          0x4F54300AU
-#define USB_OTG_CORE_ID_310A          0x4F54310AU
+#define USB_OTG_CORE_ID_310A          0x4F54310AU	// L476
+// L4R5: 0x4F54330A
 
 #ifndef USB_OTG_DOEPINT_OTEPSPR
 #define USB_OTG_DOEPINT_OTEPSPR                (0x1UL << 5)      /*!< Status Phase Received interrupt */
@@ -132,14 +133,6 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
 //{
 //    NVIC_DisableIRQ((IRQn_Type)usbd->cfg->irqn);
 //}
-// set device address
-static void USBhw_SetAddress(const struct usbdevice_ *usbd)
-{
-	//USB_OTG_TypeDef *usb = (USB_OTG_TypeDef *)usbd->usb;
-	//USB_OTG_DeviceTypeDef *usbdp = &usb->Device;
-	//usbdp->DCFG |= usbd->devdata->setaddress << USB_OTG_DCFG_DAD_Pos;
-	//usbd->devdata->setaddress = 0;
-}
 
 // L4 specific
 // get IN endpoint size from USB registers
@@ -644,7 +637,6 @@ const struct USBhw_services_ l4_otgfs_services = {
 	.Init = USBhw_Init,
 	.GetInEPSize = USBhw_GetInEPSize,
 
-	.SetAddress = USBhw_SetAddress,
 	.SetCfg = USBhw_SetCfg,
 	.ResetCfg = USBhw_ResetCfg,
 

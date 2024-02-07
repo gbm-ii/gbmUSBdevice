@@ -1,7 +1,7 @@
 /* 
  * lightweight USB device stack by gbm
- * usb_hw_g0.c - STM32G0, STM32H503 USB peripheral hardware access
- * Copyright (c) 2022 gbm
+ * usb_hw_g0.c - STM32G0, STM32H50x, STM32U53x/54x USB device/host peripheral hardware access
+ * Copyright (c) 2022..2024 gbm
  * 
  * This program is free software: you can redistribute it and/or modify  
  * it under the terms of the GNU General Public License as published by  
@@ -15,14 +15,16 @@
  * You should have received a copy of the GNU General Public License 
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#if defined(STM32G0B1xx) || defined(STM32H503xx)
+#if defined(STM32G0B1xx) || defined(STM32H503xx) || defined(STM32U535xx) || defined(STM32U545xx)
 
 #ifdef STM32G0B1xx
 #include "stm32g0xx.h"
-#endif
-
-#ifdef STM32H503xx
+#elif defined(STM32H503xx)
 #include "stm32h5xx.h"
+#elif defined(STM32U535xx) || defined(STM32U545xx)
+#include "stm32u5xx.h"
+#else
+#error unsupported MCU type
 #endif
 
 #include "usb_dev_config.h"
@@ -30,7 +32,7 @@
 #include "usb_dev.h"
 #include "usb_hw_if.h"
 
-// In G0/H5 all USB registers incl. PMA must be accessed as 32-bit!
+// In G0/H5/U5 all USB registers incl. PMA must be accessed as 32-bit!
 // PMA size: 2048 B
 typedef volatile uint32_t PMAreg;
 typedef volatile uint32_t USBreg;
@@ -53,7 +55,7 @@ struct USB_BufDesc_ {
 // software-friendly USB peripheral reg definition
 // G0B1: USB peripheral at 0x40005C00, RAM at 0x40009800
 // H503: USB peripheral at 0x40016000, RAM at 0x40016400
-// 2KiB RAM
+
 typedef struct USBh_ {
 	union {
 		struct {
@@ -94,18 +96,10 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
     NVIC_EnableIRQ((IRQn_Type)usbd->cfg->irqn);
 }
 
-// same for G0, F1, ...?
 //void USBhw_Deinit(const struct usbdevice_ *usbd)
 //{
 //    NVIC_DisableIRQ((IRQn_Type)usbd->cfg->irqn);
 //}
-
-// set device address
-static void USBhw_SetAddress(const struct usbdevice_ *usbd)
-{
-	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
-	//usb->DADDR = usbd->devdata->setaddress | USB_DADDR_EF;
-}
 
 static inline uint16_t GetRxBufSize(uint8_t block)
 {
@@ -468,7 +462,6 @@ const struct USBhw_services_ g0_fs_services = {
 	.Init = USBhw_Init,
 	.GetInEPSize = USBhw_GetInEPSize,
 
-	.SetAddress = USBhw_SetAddress,
 	.SetCfg = USBhw_SetCfg,
 	.ResetCfg = USBhw_ResetCfg,
 

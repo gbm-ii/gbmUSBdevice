@@ -1,6 +1,6 @@
 /* 
  * lightweight USB device stack by gbm
- * usb_hw_l0.c - STM32F0/L0/L4/L5 USB device FS peripheral hardware access
+ * usb_hw_l0.c - STM32F0/G4/L0/L4/L5 USB device FS peripheral hardware access
  * Copyright (c) 2022..2024 gbm
  * 
  * This program is free software: you can redistribute it and/or modify  
@@ -15,7 +15,9 @@
  * You should have received a copy of the GNU General Public License 
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#if defined(STM32F042x6) || defined(STM32F072xB) || defined(STM32L073xx) || defined(STM32L452xx) || defined(STM32L552xx)
+#if defined(STM32F042x6) || defined(STM32F072xB) || defined(STM32L073xx) \
+	|| defined(STM32L452xx) || defined(STM32L552xx) \
+	|| defined(STM32G474xx)
 
 #if defined(STM32F042x6) || defined(STM32F072xB)
 #include "stm32f0xx.h"
@@ -29,6 +31,9 @@
 #ifdef STM32L552xx
 #include "stm32l5xx.h"
 #endif
+#ifdef STM32G474xx
+#include "stm32g4xx.h"
+#endif
 
 #include <string.h>
 #include "usb_dev_config.h"
@@ -39,7 +44,7 @@
 // verified on STM32F072, L552
 // USB registers are 16-bit and may be accessed as 16- or 32-bit
 // PMA must be accessed as 16- or 8-bit (not 32!), 2 halfwords per word
-// PMA size: L0: 2048 B, F0, L4, L5: 1024 B
+// PMA size: L0: 2048 B; F0/G4/L4/L5: 1024 B
 
 typedef volatile uint32_t USBreg;
 
@@ -249,8 +254,8 @@ void USBhw_ResetCfg(const struct usbdevice_ *usbd)
 
 // Driver functions called from other modules ============================
 
-// USB peripheral must be enabled before calling Init
-// G0 specific: before enabling USB, set PWR_CR2_USV; no need to setup USB pins
+// USB peripheral must be enabled before in RCC calling Init
+// F0/G4: no need to setup USB pins
 
 // initialize USB peripheral
 void USBhw_Init(const struct usbdevice_ *usbd)
@@ -271,12 +276,6 @@ void USBhw_Init(const struct usbdevice_ *usbd)
 //{
 //    NVIC_DisableIRQ((IRQn_Type)usbd->cfg->irqn);
 //}
-// set device address
-static void USBhw_SetAddress(const struct usbdevice_ *usbd)
-{
-	//USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
-	//usb->DADDR = usbd->devdata->setaddress | USB_DADDR_EF;
-}
 
 // get IN endpoint size from USB registers
 static uint16_t USBhw_GetInEPSize(const struct usbdevice_ *usbd, uint8_t epn)
@@ -401,11 +400,6 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         usb->ISTR = ~USB_ISTR_SUSP;
         usb->CNTR |= USB_CNTR_LPMODE;
         // callback...
-//        if (usb->DADDR)
-//		{
-//            usb->DADDR = 0;
-//            usb->CNTR &= ~USB_CNTR_SUSPM;
-//        }
         return;
     }
     if (istr & USB_ISTR_WKUP)
@@ -430,7 +424,6 @@ const struct USBhw_services_ l0_fs_services = {
 	.Init = USBhw_Init,
 	.GetInEPSize = USBhw_GetInEPSize,
 
-	.SetAddress = USBhw_SetAddress,
 	.SetCfg = USBhw_SetCfg,
 	.ResetCfg = USBhw_ResetCfg,
 

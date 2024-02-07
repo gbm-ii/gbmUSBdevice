@@ -37,7 +37,6 @@ struct USBhw_services_ {
 	void (*Init)(const struct usbdevice_ *usbd);
 	uint16_t (*GetInEPSize)(const struct usbdevice_ *usbd, uint8_t epn);
 
-	void (*SetAddress)(const struct usbdevice_ *usbd);
 	void (*SetCfg)(const struct usbdevice_ *usbd);
 	void (*ResetCfg)(const struct usbdevice_ *usbd);
 
