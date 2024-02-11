@@ -134,7 +134,7 @@ struct USBdesc_ep_ {
 // Header functional descriptor, CDC120 5.2.3.1
 struct USBdesc_funCDChdr_ {
 	uint8_t
-		bLength,	// 4
+		bLength,	// 5
 		bDescriptorType,
 		bDescriptorSubtype;	// Header Func Desc
 	usb16	bcdCDC;
@@ -142,7 +142,7 @@ struct USBdesc_funCDChdr_ {
 // Call Management Functional Descriptor, PSTN120 5.3.1
 struct USBdesc_CDCcm_ {
 	uint8_t
-		bLength,	// 4
+		bLength,	// 5
 		bDescriptorType,
 		bDescriptorSubtype,	// Header Func Desc */
 		bmCapabilities,
@@ -151,7 +151,7 @@ struct USBdesc_CDCcm_ {
 // Abstract Control Management Functional Descriptor, PSTN120 5.3.2
 struct USBdesc_CDCacm_ {
 	uint8_t
-		bFunctionLength,
+		bFunctionLength,	// 4
 		bDescriptorType,
 		bDescriptorSubtype,
 		bmCapabilities;
@@ -165,6 +165,18 @@ struct USBdesc_union_ {
 		bMasterInterface,
 		bSlaveInterface0;
 };
+// HID descriptor (follows HID interface desc) ==========================
+struct USBdesc_hid_ {
+	uint8_t
+		bLength,	// 9
+		bDescriptorType;
+	usb16 bcdHID;	//
+	uint8_t bCountryCode,
+		bNumDescriptors,
+		bHidDescriptorType;
+	usb16 wDescriptorLength;
+};
+
 //========================================================================
 // Function descriptors for configuration descriptor composition
 
@@ -207,6 +219,25 @@ struct prn2desc_ {
 	struct USBdesc_ep_ prnin;
 	struct USBdesc_ep_ prnout;
 };
+
+struct hid_ctrlonly_desc_ {
+	struct USBdesc_if_ hidifdesc;
+	struct USBdesc_hid_ hiddesc;
+};
+
+struct hid_inonly_desc_ {
+	struct USBdesc_if_ hidifdesc;
+	struct USBdesc_hid_ hiddesc;
+	struct USBdesc_ep_ hidin;
+};
+
+struct hid_inout_desc_ {
+	struct USBdesc_if_ hidifdesc;
+	struct USBdesc_hid_ hiddesc;
+	struct USBdesc_ep_ hidin;
+	struct USBdesc_ep_ hidout;
+};
+
 //========================================================================
 // complete configuration descriptors for simple devices
 // dev., single CDC
@@ -255,6 +286,7 @@ struct cfgdesc_msc_ncdc_prn_ {
 	struct prndesc_ prn;
 #endif
 #if USBD_HID
+	struct hid_fun_desc_ hid;
 #endif
 };
 

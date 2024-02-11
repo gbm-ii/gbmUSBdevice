@@ -1,7 +1,7 @@
 /* 
  * lightweight USB device stack by gbm
- * usb_hw_l4.c - STM32L4, STM32F4 USB OTG peripheral hardware access
- * Copyright (c) 2022 gbm
+ * usb_hw_l4.c - STM32F4/L4/U5 USB OTG peripheral hardware access
+ * Copyright (c) 2022..2024 gbm
  * 
  * This program is free software: you can redistribute it and/or modify  
  * it under the terms of the GNU General Public License as published by  
@@ -16,14 +16,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// verified on F401, L476, L496, L4R5
-#if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx) || defined(STM32F401xC) || defined (STM32U575xx)
+// verified on F401, L476, L496, L4R5, U575
+#if defined(STM32F401xC) || defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx) || defined(STM32U575xx)
 
-#if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx)
-#ifndef STM32L4
-#define STM32L4
+#if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx) || defined(STM32U575xx)
 #define NEW_OTG
-#endif
 #endif
 
 #include <string.h>
@@ -35,6 +32,7 @@
 #define STUPCNT0	(3u << USB_OTG_DOEPTSIZ_STUPCNT_Pos)	// to be used for DOEPTSIZ0
 
 #define FIFO_WORDS	320u	// total FIFO memory size in 32-bit words
+// 1024 words for U5 OTG HS
 
 #define USB_OTG_CORE_ID_300A          0x4F54300AU
 #define USB_OTG_CORE_ID_310A          0x4F54310AU	// L476
@@ -51,24 +49,6 @@
 #endif /* defined USB_OTG_DOEPINT_STPKTRX */
 //        USBx_OUTEP(i)->DOEPINT = 0xFB7FU;
 
-#if defined (STM32U575xx)
-#define NEW_OTG
-// software-friendly USB peripheral reg definition F4/L4
-#define USB_OTG_INEndpointTypeDef _INEndpointTypeDef
-#define USB_OTG_OUTEndpointTypeDef _OUTEndpointTypeDef
-typedef struct USB_OTG_ {
-	USB_OTG_GlobalTypeDef Global;
-	uint8_t gfill[USB_OTG_DEVICE_BASE - sizeof(USB_OTG_GlobalTypeDef) - USB_OTG_GLOBAL_BASE];
-	USB_OTG_DeviceTypeDef Device;
-	uint8_t dfill[USB_OTG_IN_ENDPOINT_BASE - sizeof(USB_OTG_DeviceTypeDef) - USB_OTG_DEVICE_BASE];
-	USB_OTG_INEndpointTypeDef InEP[1];
-	uint8_t ifill[USB_OTG_OUT_ENDPOINT_BASE - sizeof(USB_OTG_INEndpointTypeDef) - USB_OTG_IN_ENDPOINT_BASE];
-	USB_OTG_OUTEndpointTypeDef OutEP[1];
-	uint8_t ofill[USB_OTG_FIFO_BASE - sizeof(USB_OTG_OUTEndpointTypeDef) - USB_OTG_OUT_ENDPOINT_BASE];
-	volatile uint32_t FIFO[31][0x400];
-	volatile uint32_t FIFODBG[0x400];	// FIFO RAM debug access at offset 0x20000
-} USB_OTG_TypeDef;	// USBh to make it different from possible mfg. additions to header files
-#else
 // software-friendly USB peripheral reg definition F4/L4
 typedef struct USB_OTG_ {
 	USB_OTG_GlobalTypeDef Global;
@@ -80,9 +60,9 @@ typedef struct USB_OTG_ {
 	USB_OTG_OUTEndpointTypeDef OutEP[1];
 	uint8_t ofill[USB_OTG_FIFO_BASE - sizeof(USB_OTG_OUTEndpointTypeDef) - USB_OTG_OUT_ENDPOINT_BASE];
 	volatile uint32_t FIFO[31][0x400];
-	volatile uint32_t FIFODBG[0x400];	// FIFO RAM debug access at offset 0x20000
+	volatile uint32_t FIFODBG[0x400];	// F4 FIFO RAM debug access at offset 0x20000
 } USB_OTG_TypeDef;	// USBh to make it different from possible mfg. additions to header files
-#endif
+
 //========================================================================
 // USB peripheral must be enabled before calling Init
 // G0, L4 specific: before enabling USB, set PWR_CR2_USV
@@ -103,12 +83,11 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
 	// in ST stack, TRDT is 5
 
 	while (usbg->GINTSTS & USB_OTG_GINTSTS_CMOD); 	// while in host mode
-	usbg->GCCFG |= USB_OTG_GCCFG_PWRDWN;	// power up phy bylo tutaj
+	usbg->GCCFG |= USB_OTG_GCCFG_PWRDWN;	// power up phy was here
 
-#if defined(STM32L4) || defined (STM32U575xx)
+#ifdef NEW_OTG
     usbg->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN | USB_OTG_GOTGCTL_BVALOVAL;
-#endif
-#ifdef STM32F401xC
+#else	// F4
 	usbg->GCCFG |= USB_OTG_GCCFG_NOVBUSSENS;	// disable VBUS sense
     usbg->GOTGCTL |= USB_OTG_GOTGCTL_BSVLD;
 #endif
@@ -134,7 +113,6 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
 //    NVIC_DisableIRQ((IRQn_Type)usbd->cfg->irqn);
 //}
 
-// L4 specific
 // get IN endpoint size from USB registers
 static uint16_t USBhw_GetInEPSize(const struct usbdevice_ *usbd, uint8_t epn)
 {
@@ -143,6 +121,7 @@ static uint16_t USBhw_GetInEPSize(const struct usbdevice_ *usbd, uint8_t epn)
 	return epn ? inepsize : 64 >> (inepsize & 3);	// EP size = 8
 }
 
+// not exactly correct rework needed
 static void USBhw_SetEPStall(const struct usbdevice_ *usbd, uint8_t epaddr)
 {
 	USB_OTG_TypeDef *usb = (USB_OTG_TypeDef *)usbd->usb;
@@ -269,6 +248,7 @@ static void USBhw_EnumDone(const struct usbdevice_ *usbd)
 		| USB_OTG_DOEPINT_STPKTRX \
 		| USB_OTG_DOEPINT_OTEPDIS | USB_OTG_DOEPINT_STUP \
 		| USB_OTG_DOEPINT_EPDISD | USB_OTG_DOEPINT_XFRC)
+
 // setup and enable app endpoints on set configuration request
 static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 {
@@ -286,15 +266,15 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 	{
 		while (usbg->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH);	// wait for previous flush
 
-    	const struct USBdesc_ep_ *ind = USBdev_GetEPDescriptor(usbd, i | EP_IS_IN);
-		uint16_t txsize = ind ? getusb16(&ind->wMaxPacketSize) : 0;
+    	const struct USBdesc_ep_ *inepdesc = USBdev_GetEPDescriptor(usbd, i | EP_IS_IN);
+		uint16_t txsize = inepdesc ? getusb16(&inepdesc->wMaxPacketSize) : 0;
 		uint16_t fifosize = txsize / 4 < 16u ? 16u : txsize / 4;	// in words, packet size
 		if (txsize)	// in bytes
 		{
 			usbg->DIEPTXF[i - 1] = fifosize << USB_OTG_DIEPTXF_INEPTXFD_Pos | addr;	// set also for unused EP
 			usbg->GRSTCTL = i << USB_OTG_GRSTCTL_TXFNUM_Pos | USB_OTG_GRSTCTL_TXFFLSH;
 			InEP[i].DIEPCTL = USB_OTG_DIEPCTL_SD0PID_SEVNFRM | i << USB_OTG_DIEPCTL_TXFNUM_Pos
-				| ind->bmAttributes << USB_OTG_DIEPCTL_EPTYP_Pos
+				| inepdesc->bmAttributes << USB_OTG_DIEPCTL_EPTYP_Pos
 				| USB_OTG_DIEPCTL_SNAK | USB_OTG_DIEPCTL_USBAEP | txsize;
 			usbdp->DAINTMSK |= 1u << i << USB_OTG_DAINTMSK_IEPM_Pos;
 			addr += fifosize;
@@ -304,11 +284,11 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 				| USBD_EP_TYPE_BULK << USB_OTG_DIEPCTL_EPTYP_Pos
 				| USB_OTG_DIEPCTL_EPDIS;
 
-    	const struct USBdesc_ep_ *outd = USBdev_GetEPDescriptor(usbd, i);
-		uint16_t rxsize = outd ? getusb16(&outd->wMaxPacketSize) : 0;
+    	const struct USBdesc_ep_ *outepdesc = USBdev_GetEPDescriptor(usbd, i);
+		uint16_t rxsize = outepdesc ? getusb16(&outepdesc->wMaxPacketSize) : 0;
 		if (rxsize)
 		{
-			OutEP[i].DOEPCTL = USB_OTG_DOEPCTL_SD0PID_SEVNFRM | outd->bmAttributes << USB_OTG_DOEPCTL_EPTYP_Pos
+			OutEP[i].DOEPCTL = USB_OTG_DOEPCTL_SD0PID_SEVNFRM | outepdesc->bmAttributes << USB_OTG_DOEPCTL_EPTYP_Pos
 				| USB_OTG_DOEPCTL_USBAEP | rxsize;
 			OutEP[i].DOEPINT = USB_OTG_DOEPINT_ALL;	// clear interrupt flags
 			usbdp->DAINTMSK |= 1u << i << USB_OTG_DAINTMSK_OEPM_Pos;
@@ -472,8 +452,6 @@ static void USBhw_ReadRxData(const struct usbdevice_ *usbd, uint8_t epn, uint16_
 	}
 }
 
-enum pktsts_ {PKTSTS_GONAK = 1, PKTSTS_OUTREC, PKTSTS_OUTCPLT, PKTSTS_STPCPLT, PKTSTS_STPREC = 6};
-
 static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 {
 	USB_OTG_TypeDef *usb = (USB_OTG_TypeDef *)usbd->usb;
@@ -501,25 +479,20 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
     {
     	usbg->GINTSTS = USB_OTG_GINTSTS_WKUINT | USB_OTG_GINTSTS_USBSUSP;
     }
-    if (gintsts & USB_OTG_GINTSTS_RXFLVL)	// Out FIFO; fails on F411 if replaced by while()
+    if (gintsts & USB_OTG_GINTSTS_RXFLVL)
     {
-    	//USB_OTG_DeviceTypeDef *usbdp = &usb->Device;
     	uint32_t sts = usbg->GRXSTSP;
     	uint8_t epn = (sts & USB_OTG_GRXSTSP_EPNUM_Msk) >> USB_OTG_GRXSTSP_EPNUM_Pos;
     	uint16_t size = (sts & USB_OTG_GRXSTSP_BCNT_Msk) >> USB_OTG_GRXSTSP_BCNT_Pos;
     	switch ((sts & USB_OTG_GRXSTSP_PKTSTS_Msk) >> USB_OTG_GRXSTSP_PKTSTS_Pos)
     	{
+    		enum pktsts_ {PKTSTS_GONAK = 1, PKTSTS_OUTREC, PKTSTS_OUTCPLT, PKTSTS_STPCPLT, PKTSTS_STPREC = 6};
+
     	case PKTSTS_OUTREC:
    			USBhw_ReadRxData(usbd, epn, size);	// sets received size, maybe to 0
     		break;
-    	case PKTSTS_OUTCPLT:
-			//USBdev_OutEPHandler(usbd, epn, 0);
-    		break;
     	case PKTSTS_STPREC:
    			USBhw_ReadRxData(usbd, epn, size);
-    		break;
-    	case PKTSTS_STPCPLT:
-			//USBdev_OutEPHandler(usbd, epn, 1);
     		break;
     	default:
     		;
@@ -534,7 +507,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
     		{
     			volatile uint32_t *doepint = &usb->OutEP[epn].DOEPINT;
     			uint32_t doepintv = *doepint;
-#if 1
+
     			// handle XFRC, STUP, and EP disable
     			if (doepintv & USB_OTG_DOEPINT_XFRC)
     			{
@@ -567,7 +540,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 
     				USBdev_OutEPHandler(usbd, epn, 1);
     			}
-#endif
+
     			if (doepintv & USB_OTG_DOEPINT_EPDISD)
     			{
     				if (usbg->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF)

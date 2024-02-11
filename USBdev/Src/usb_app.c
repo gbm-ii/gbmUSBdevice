@@ -59,8 +59,7 @@ static struct cdc_data_ cdc_data[USBD_CDC_CHANNELS] = {
 #endif	// USBD_CDC_CHANNELS
 
 #if USBD_PRINTER
-static uint8_t prnRxData[PRN_DATA_EP_SIZE];	// data buffer
-static uint8_t prnRxLen;
+static struct prn_data_ prn_data;
 #endif
 
 // endpoint data =========================================================
@@ -85,7 +84,7 @@ static struct epdata_ out_epdata[USBD_NUM_EPPAIRS] = {
 #endif	// USBD_CDC_CHANNELS > 1
 #endif	// USBD_CDC_CHANNELS
 #if USBD_PRINTER
-	{.ptr = prnRxData, .count = 0},
+	{.ptr = prn_data.RxData, .count = 0},
 #endif
 };
 
@@ -197,26 +196,27 @@ static void allow_rx(uint8_t epn)
 }
 
 #if USBD_PRINTER
+
 void PRN_rx_IRQHandler(void)
 {
-	if (prnRxLen)
+	if (prn_data.RxLength)
 	{
-		uint8_t *rxptr = prnRxData; //
-		for (uint8_t i = 0; i < prnRxLen; i++)
+		uint8_t *rxptr = prn_data.RxData; //
+		for (uint8_t i = 0; i < prn_data.RxLength; i++)
 			process_input(0, *rxptr++);	// same handling as vcom0
-		prnRxLen = 0;
+		prn_data.RxLength = 0;
 		allow_rx(PRN_DATA_OUT_EP);
 	}
 }
 #endif
 
 //========================================================================
-uint32_t msec;
+uint32_t usbdev_msec;
 
 // called from USB interrupt at 1 kHz (SOF)
 void usbdev_tick(void)
 {
-	++msec;
+	++usbdev_msec;
 #if USBD_CDC_CHANNELS
 	static uint16_t dt;
 	if ((++dt & 0x3ff) == 0)
@@ -238,6 +238,8 @@ void usbdev_tick(void)
 			NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);
 		}
 	}
+#endif
+#if USBD_HID
 #endif
 }
 
@@ -268,7 +270,8 @@ struct cdc_seriastatenotif_  ssnotif = {
 	.wSerialState = 0
 };
 
-static void send_serialstate_notif(uint8_t ch)
+// inline only to avoid not used warning
+static inline void send_serialstate_notif(uint8_t ch)
 {
 	ssnotif.wIndex = ConfigDesc.cdc[ch].cdcdesc.cdccomifdesc.bInterfaceNumber;	// interface
 	ssnotif.wSerialState = cdc_data[ch].SerialState;
@@ -404,7 +407,7 @@ void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
 #endif	// USBD_CDC_CHANNELS
 #if USBD_PRINTER
 			case PRN_DATA_OUT_EP:
-				prnRxLen = length;
+				prn_data.RxLength = length;
 				NVIC_SetPendingIRQ(PRN_rx_IRQn);
 				break;
 #endif
@@ -588,6 +591,13 @@ static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc = {
 		.prnout = EPDESC(PRN_DATA_OUT_EP, USB_EPTYPE_BULK, PRN_DATA_EP_SIZE, 0)
 	},
 #endif
+#if USBD_HID
+	.hid = {
+		.hidifdesc = IFDESC(IFNUM_HID, 1, USB_CLASS_HID, HID_SUBCLASS_NONE, PROTOCOL_, USBD_SIDX_HID),
+		.hid_desc =
+		.hidin = EPDESC(HID_IN_EP, USBD_EP_TYPE_INTR, HID_EP_SIZE, 10)
+	};
+#endif
 };
 #endif
 
@@ -679,11 +689,18 @@ static const struct usbdcfg_ usbdcfg = {
 
 static struct usbdevdata_ uddata;	// device data and status
 
-struct cdc_services_ cdc_service = {
+static const struct cdc_services_ cdc_service = {
 	.SetLineCoding = 0,
 	.SetControlLineState = cdc_LineStateHandler,
 	// todo: add get status call when implementing notifications
 };
+
+#if USBD_PRINTER
+static const struct prn_services_ prn_service = {
+	.SoftReset = 0,
+	.UpdateStatus = 0
+};
+#endif
 
 // main device data structure - const with pointers to const & variable structures
 const struct usbdevice_ usbdev = {
@@ -695,7 +712,11 @@ const struct usbdevice_ usbdev = {
 	.inep = in_epdata,
 	.SOF_Handler = usbdev_tick,
 	.cdc_service = &cdc_service,
-	.cdc_data = cdc_data
+	.cdc_data = cdc_data,
+#if USBD_PRINTER
+	.prn_service = &prn_service,
+	.prn_data = &prn_data,
+#endif
 };
 
 // Init routine to start USB device =================================

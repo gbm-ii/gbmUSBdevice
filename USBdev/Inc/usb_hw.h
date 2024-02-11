@@ -30,7 +30,7 @@ extern const struct USBhw_services_ f1_fs_services;
 #define USB_BASE              (APB1PERIPH_BASE + 0x00005C00UL) /*!< USB_IP Peripheral Registers base address */
 #endif
 
-// USB FS Device - F0, L0, L5
+// USB FS Device - F0, L0, L5, ...
 #elif defined(STM32F072xB) || defined(STM32F042x6)
 #include "stm32f0xx.h"
 #define USB_NEPPAIRS	8u	// no. of endpoint pairs supported by hardware
@@ -94,6 +94,9 @@ extern const struct USBhw_services_ g0_fs_services;
 
 #define USB_BASE	USB_DRD_BASE_NS
 #define USB_PMA_OFFSET ((USB_DRD_PMAADDR_NS) - (USB_DRD_BASE_NS))
+
+
+// USB OTG
 
 #elif defined(STM32F401xC)
 #include "stm32f4xx.h"

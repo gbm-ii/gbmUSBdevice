@@ -33,8 +33,9 @@
 #include "usb_class_cdc.h"
 #include "usb_class_prn.h"
 
-uint8_t prn_Status = 0x0c;	// Selected, No Error
 uint8_t msc_max_lun = 0;
+
+struct prn_data_ prn_data;
 
  __attribute__ ((weak)) void xxcdc_LineStateHandler(const struct usbdevice_ *usbd, uint8_t idx)
 {
@@ -113,7 +114,7 @@ void USBclass_HandleRequest(const struct usbdevice_ *usbd)
 
 #if USBD_CDC_CHANNELS
 			case USB_CLASS_COMMUNICATIONS:	// ACM requests are sent via control interface
-				;
+				;	// get CDC function index (multiple CDC channels support)
 				uint8_t funidx = usbd->cfg->ifassoc[interface].funidx;
 				switch (req->bRequest)
 				{
@@ -179,11 +180,16 @@ void USBclass_HandleRequest(const struct usbdevice_ *usbd)
 						USBdev_CtrlError(usbd);
 					break;
 				case PRNRQ_GET_PORT_STATUS:
-					// update status
-					USBdev_SendStatus(usbd, &prn_Status, MIN(req->wLength, 1), 0);
+					if (usbd->prn_service->UpdateStatus)
+						usbd->prn_service->UpdateStatus(usbd);
+					else
+						usbd->prn_data->Status = PRN_STATUS_NOTERROR | PRN_STATUS_SELECT;
+					USBdev_SendStatus(usbd, &usbd->prn_data->Status, MIN(req->wLength, 1), 0);
 					break;
 				case PRNRQ_SOFT_RESET:
 					// reset
+					if (usbd->prn_service->SoftReset)
+						usbd->prn_service->SoftReset(usbd);
 					USBdev_SendStatusOK(usbd);
 					break;
 				default:

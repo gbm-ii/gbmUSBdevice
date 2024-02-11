@@ -152,22 +152,25 @@ enum uart_parity_ {PARITY_NONE, PARITY_ODD, PARITY_EVEN, PARITY_MARK, PARITY_SPA
 #define	CDC_CTL_RTS	(1u << 1)
 #define	CDC_CTL_RTR	CDC_CTL_RTS
 
+
+// gbmUSBdevice stuff ====================================================
 #include <stdint.h>
+#include <stdbool.h>
 
 //========================================================================
 struct cdc_linecoding_ {
 	uint32_t dwDTERate;	// Data terminal rate, in bits per second*/
-	uint8_t bCharFormat;	// |   1  | Number | Stop bits                            */
-  /*                                        0 - 1 Stop bit                       */
-  /*                                        1 - 1.5 Stop bits                    */
-  /*                                        2 - 2 Stop bits                      */
-	uint8_t bParityType;	// |  1   | Number | Parity                               */
+	uint8_t bCharFormat;	/* Value | Stop bits
+                                   0 - 1 Stop bit
+                                   1 - 1.5 Stop bits
+                               	   2 - 2 Stop bits */
+	uint8_t bParityType;	// |  1   | Number | Parity
   /*                                        0 - None                             */
   /*                                        1 - Odd                              */
   /*                                        2 - Even                             */
   /*                                        3 - Mark                             */
   /*                                        4 - Space                            */
-	uint8_t bDataBits;	//  |   1   | Number Data bits (5, 6, 7, 8 or 16).          */
+	uint8_t bDataBits;	//  Data bits (5, 6, 7, 8 or 16)
 };
 
 // Serial state notification =============================================
@@ -178,10 +181,10 @@ struct cdc_seriastatenotif_ {
 	uint16_t wSerialState;
 };
 
-// application-specific
+// application-specific CDC channel data
 struct cdc_data_ {
 	struct cdc_linecoding_ LineCoding;
-	uint16_t ControlLineState;	// bit 0 - DTE ready, bit 1 - CD
+	uint16_t ControlLineState;	// bit 0 - DTE ready, bit 1 - CD/RTS/RTR
 	uint16_t SerialState;
 	bool LineCodingChanged;
 	bool ControlLineStateChanged;
@@ -189,7 +192,6 @@ struct cdc_data_ {
 	bool signon_rq;
 	uint8_t connstart_timer;
 	uint16_t RxLength;
-	//bool TxBuf;	// double buffer index - obsolete
 	volatile uint8_t TxLength;
 	uint8_t TxTout;
 	uint8_t RxData[CDC_DATA_EP_SIZE];
@@ -202,7 +204,3 @@ struct cdc_services_ {
 };
 
 //========================================================================
-#if defined(USBD_CDC_CHANNELS) && USBD_CDC_CHANNELS
-// define in usb_app.c
-//extern struct cdc_data_ cdc_data[USBD_CDC_CHANNELS];
-#endif

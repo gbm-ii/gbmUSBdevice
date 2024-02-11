@@ -117,8 +117,12 @@ struct usbdevice_ {
 	struct epdata_ *inep;
 	void (*SOF_Handler)(void);
 #if USBD_CDC_CHANNELS
-	struct cdc_services_ *cdc_service;
+	const struct cdc_services_ *cdc_service;
 	struct cdc_data_ *cdc_data;
+#endif
+#if USBD_PRINTER
+	const struct prn_services_ *prn_service;
+	struct prn_data_ *prn_data;
 #endif
 };
 

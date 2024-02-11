@@ -24,7 +24,7 @@
 #ifdef USBLOG
 // Log ===================================================================
 #include <stdio.h>
-extern uint32_t msec;
+extern uint32_t usbdev_msec;	// defined in usb_app.c
 
 #define USBLOGSIZE	50
 
@@ -45,7 +45,7 @@ void USBlog_storerq(USB_SetupPacket *pkt)
 {
 	if (logidx < USBLOGSIZE - 1)
 		++logidx;
-	usblog[logidx].msec = msec;
+	usblog[logidx].msec = usbdev_msec;
 	usblog[logidx].pkt = *pkt;
 }
 

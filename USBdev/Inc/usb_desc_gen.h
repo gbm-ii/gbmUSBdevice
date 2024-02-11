@@ -1,7 +1,7 @@
 /*
  * lightweight USB device stack by gbm
  * usb_desc_gen.h - USB descriptor generator definitions and macros
- * Copyright (c) 2022..2022 gbm
+ * Copyright (c) 2022..2024 gbm
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
