@@ -17,9 +17,12 @@
  */
 
 // verified on F401, L476, L496, L4R5, U575
-#if defined(STM32F401xC) || defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx) || defined(STM32U575xx)
+#if defined(STM32F401xC) \
+	|| defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx) \
+	|| defined(STM32U575xx) || defined(STM32U585xx)
 
-#if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx) || defined(STM32U575xx)
+#if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx) \
+	|| defined(STM32U575xx) || defined(STM32U585xx)
 #define NEW_OTG
 #endif
 

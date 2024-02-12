@@ -112,7 +112,7 @@ extern const struct USBhw_services_ l4_otgfs_services;
 extern const struct USBhw_services_ l4_otgfs_services;
 #define usb_hw_services	l4_otgfs_services
 
-#elif defined (STM32U575xx)
+#elif defined(STM32U575xx) || defined(STM32U585xx)
 #include "stm32u5xx.h"
 #define USB_NEPPAIRS	6u	// no. of endpoint pairs supported by hardware
 #define EPNUMMSK	7u
