@@ -196,6 +196,12 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 	SetEPRState(usbd, 0, USB_EPRX_STAT | USB_EPTX_STAT | USB_EP_DTOG_TX | USB_EP_DTOG_RX, epstate);
 }
 
+// convert endpoint size to endpoint buffer size
+static inline uint16_t epbufsize(uint16_t s)
+{
+	return (s + 1) & ~1;
+}
+
 // setup and enable app endpoints on set configuration request
 static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 {
@@ -210,10 +216,10 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 		bufdesc[i].TxAddress = addr;
 		bufdesc[i].TxCount = 0;
     	const struct USBdesc_ep_ *ind = USBdev_GetEPDescriptor(usbd, i | EP_IS_IN);
-		uint16_t txsize = ind ? getusb16(&ind->wMaxPacketSize) : 0;
+		uint16_t txsize = ind ? epbufsize(getusb16(&ind->wMaxPacketSize)) : 0;
 		addr += txsize;
     	const struct USBdesc_ep_ *outd = USBdev_GetEPDescriptor(usbd, i);
-		uint16_t rxsize = outd ? getusb16(&outd->wMaxPacketSize) : 0;
+		uint16_t rxsize = outd ? epbufsize(getusb16(&outd->wMaxPacketSize)) : 0;
 		bufdesc[i].RxAddress = addr;
 		bufdesc[i].RxCount.v = (union rxcount_){.num_block = SetRxNumBlock(rxsize), .count = CNT_INVALID}.v;
         addr += rxsize;

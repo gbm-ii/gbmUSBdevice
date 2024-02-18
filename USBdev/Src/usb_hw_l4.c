@@ -271,7 +271,10 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 
     	const struct USBdesc_ep_ *inepdesc = USBdev_GetEPDescriptor(usbd, i | EP_IS_IN);
 		uint16_t txsize = inepdesc ? getusb16(&inepdesc->wMaxPacketSize) : 0;
-		uint16_t fifosize = txsize / 4 < 16u ? 16u : txsize / 4;	// in words, packet size
+		// convert endpoint size to endpoint buffer size in 32-bit words
+		uint16_t fifosize = (txsize + 3) / 4;
+		if (fifosize < 16)
+			fifosize = 16;
 		if (txsize)	// in bytes
 		{
 			usbg->DIEPTXF[i - 1] = fifosize << USB_OTG_DIEPTXF_INEPTXFD_Pos | addr;	// set also for unused EP

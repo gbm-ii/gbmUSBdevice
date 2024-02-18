@@ -19,7 +19,8 @@
 #ifndef INC_MCU_HW_H_
 #define INC_MCU_HW_H_
 
-#include "stm32f1yy.h"
+#include "stm32f10y.h"
+#include "bf_reg.h"
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
@@ -65,7 +66,7 @@ static inline void USBhwSetup(void)
 	AFIO->MAPR = AFIO_MAPR_SWJ_CFG_JTAGDISABLE;	// SWD only
 
 	// Pull down PA12 (USBDP) to disable USB pullup detection
-	BF4_(GPIOA->CRH).p12 = GPIO_CR_OOD_S;
+	BF4F(GPIOA->CRH, 12) = GPIO_CR_OOD_S;
 	
 	// USB enumeration delay - replace with HAL_Delay if HAL is used
 	noHAL_Delay(USB_ENUM_DELAY_ms);

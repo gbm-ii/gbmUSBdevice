@@ -40,20 +40,21 @@ void USBdev_SetRxBuf(const struct usbdevice_ *usbd, uint8_t epn, uint8_t *buf)
 		usbd->outep[epn].ptr = buf;
 }
 
-void USBdev_SendData(const struct usbdevice_ *usbd, uint8_t epn, const uint8_t *data, uint16_t length, bool autozlp)
+bool USBdev_SendData(const struct usbdevice_ *usbd, uint8_t epn, const uint8_t *data, uint16_t length, bool autozlp)
 {
 	epn &= EPNUMMSK;
+	struct epdata_ *epd = &usbd->inep[epn];
+	if (epd->busy || (epn && usbd->devdata->devstate != USBD_STATE_CONFIGURED))
+		return 1;
+
 	if (!data)
 		length = 0;	// send ZLP if nullptr passed
-	struct epdata_ *epd = &usbd->inep[epn];
-	if (!epd->busy)
-	{
-		epd->busy = 1;
-		epd->count = length;
-		epd->ptr = (uint8_t *)data;
-		epd->sendzlp = autozlp && length && length % usbd->hwif->GetInEPSize(usbd, epn) == 0;
-		usbd->hwif->StartTx(usbd, epn);
-	}
+	epd->busy = 1;
+	epd->count = length;
+	epd->ptr = (uint8_t *)data;
+	epd->sendzlp = autozlp && length && length % usbd->hwif->GetInEPSize(usbd, epn) == 0;
+	usbd->hwif->StartTx(usbd, epn);
+	return 0;
 }
 
 void USBdev_SendStatus(const struct usbdevice_ *usbd, const uint8_t *data, uint16_t length, bool zlp)

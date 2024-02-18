@@ -140,6 +140,6 @@ void USBdev_CtrlError(const struct usbdevice_ *usbd);
 // called by app
 void USBdev_SetRxBuf(const struct usbdevice_ *usbd, uint8_t epn, uint8_t *buf);
 void USBdev_EnableRx(const struct usbdevice_ *usbd, uint8_t epn);
-void USBdev_SendData(const struct usbdevice_ *usbd, uint8_t epn, const uint8_t *data, uint16_t length, bool zlp);
+bool USBdev_SendData(const struct usbdevice_ *usbd, uint8_t epn, const uint8_t *data, uint16_t length, bool zlp);
 
 #endif

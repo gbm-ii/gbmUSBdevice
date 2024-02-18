@@ -42,6 +42,10 @@ static inline void ClockSetup(void)
 // USB peripheral enable & pin configuration
 static inline void USBhwSetup(void)
 {
+#ifndef STM32F072xx
+	RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+	SYSCFG->CFGR1 |= SYSCFG_CFGR1_PA11_PA12_RMP;
+#endif
     RCC->APB1ENR |= RCC_APB1ENR_USBEN;
 	// With F0 series, MODER and OSPEEEDR value is "don't care" for USB data pins
 }

@@ -23,7 +23,7 @@
 #define USBD_CTRL_EP_SIZE	64u
 #define MSC_BOT_EP_SIZE	64u
 #define CDC_DATA_EP_SIZE	64u
-#define CDC_INT_EP_SIZE	16u	// serial state notification size is 10 bytes
+#define CDC_INT_EP_SIZE	10u	// serial state notification size is 10 bytes
 #define PRN_DATA_EP_SIZE	64u
 
 //#define USE_COMMON_CDC_INT_IN_EP

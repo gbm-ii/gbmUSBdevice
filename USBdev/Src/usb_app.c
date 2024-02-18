@@ -106,9 +106,7 @@ const struct vcomcfg_ vcomcfg[USBD_CDC_CHANNELS] = {
 #endif	// USBD_CDC_CHANNELS > 2
 #endif	// USBD_CDC_CHANNELS > 1
 };
-#endif	// USBD_CDC_CHANNELS
 
-#if USBD_CDC_CHANNELS
 // put character into sendbuf, generate send packet request event
 void vcom_putchar(uint8_t ch, char c)
 {
@@ -175,8 +173,34 @@ void vcom2_putstring(const char *s)
 
 #endif	// USBD_CDC_CHANNELS > 2
 #endif	// USBD_CDC_CHANNELS > 1
+
+// Serial state notification =============================================
+struct cdc_seriastatenotif_  ssnotif = {
+	.bmRequestType = {.Recipient = USB_RQREC_INTERFACE, .Type = USB_RQTYPE_CLASS, .DirIn = 1},
+	.bNotification = CDC_NOTIFICATION_SERIAL_STATE,
+	.wIndex = 0,	// interface
+	.wLength = 2,	// size of wSerialState
+	.wSerialState = 0
+};
+
+// forward declaration
+const struct usbdevice_ usbdev;
+
+// inline only to avoid not used warning
+static inline void send_serialstate_notif(uint8_t ch)
+{
+	ssnotif.wIndex = ConfigDesc.cdc[ch].cdcdesc.cdccomifdesc.bInterfaceNumber;	// interface
+	ssnotif.wSerialState = cdc_data[ch].SerialState;
+	if (USBdev_SendData(&usbdev, ConfigDesc.cdc[ch].cdcdesc.cdcnotif.bEndpointAddress,
+		(const uint8_t *)&ssnotif, sizeof(ssnotif), 0) == 0)
+	{
+		cdc_data[ch].SerialStateSent = ssnotif.wSerialState & (CDC_SERIAL_STATE_TX_CARRIER | CDC_SERIAL_STATE_RX_CARRIER);	// clear all transient flags
+		cdc_data[ch].SerialState ^= ssnotif.wSerialState & ~(CDC_SERIAL_STATE_TX_CARRIER | CDC_SERIAL_STATE_RX_CARRIER);	// clear transient flags sent
+	}
+}
 #endif	// USBD_CDC_CHANNELS
 
+// overwrite for any real-world use - this is just echo for demo application
 // return 1 if prompt requested
 __attribute__ ((weak)) bool process_input(uint8_t ch, uint8_t c)
 {
@@ -185,9 +209,8 @@ __attribute__ ((weak)) bool process_input(uint8_t ch, uint8_t c)
 #endif
 	return 0;
 }
-// forward declaration
-const struct usbdevice_ usbdev;
 
+// enable data reception on a specified endpoint - called after received data is processed
 static void allow_rx(uint8_t epn)
 {
 	__disable_irq();
@@ -218,25 +241,28 @@ void usbdev_tick(void)
 {
 	++usbdev_msec;
 #if USBD_CDC_CHANNELS
-	static uint16_t dt;
-	if ((++dt & 0x3ff) == 0)
-	{
-		cdc_data[0].SerialState = dt >> 10 & 3;
-		//send_serialstate_notif(0);
-	}
+//	static uint16_t dt;
+//	if ((++dt & 0x3ff) == 0)
+//	{
+//		cdc_data[0].SerialState = dt >> 10 & 3;
+//		//send_serialstate_notif(0);
+//	}
 	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
 	{
-		if (cdc_data[ch].connstart_timer && --cdc_data[ch].connstart_timer == 0)
+		struct cdc_data_ *cdcp = &cdc_data[ch];
+		if (cdcp->connstart_timer && --cdcp->connstart_timer == 0)
 		{
-			cdc_data[ch].connected = 1;
-			cdc_data[ch].signon_rq = 1;
+			cdcp->connected = 1;
+			cdcp->signon_rq = 1;
 			NVIC_SetPendingIRQ(vcomcfg[ch].rx_irqn);
 			NVIC_EnableIRQ(vcomcfg[ch].tx_irqn);
 		}
-		if (cdc_data[ch].TxTout && --cdc_data[ch].TxTout == 0)
+		if (cdcp->TxTout && --cdcp->TxTout == 0)
 		{
 			NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);
 		}
+		if (cdcp->SerialState != cdcp->SerialStateSent)
+			send_serialstate_notif(ch);
 	}
 #endif
 #if USBD_HID
@@ -249,6 +275,8 @@ void cdc_LineStateHandler(const struct usbdevice_ *usbd, uint8_t ch)
 	// called from USB interrupt, overwrites the default handler in usb_class.c
 	if ((cdc_data[ch].ControlLineState & (CDC_CTL_DTR | CDC_CTL_RTS)) == (CDC_CTL_DTR | CDC_CTL_RTS))
 	{
+		// Note: Br@y Terminal sends DTR & RTS only when DTR goes active while RTS _is_ active
+		cdc_data[ch].SerialState |= CDC_SERIAL_STATE_TX_CARRIER | CDC_SERIAL_STATE_RX_CARRIER;
 		cdc_data[ch].connstart_timer = SIGNON_DELAY;	// display prompt after 50 ms
 	}
 	else
@@ -261,25 +289,6 @@ void cdc_LineStateHandler(const struct usbdevice_ *usbd, uint8_t ch)
 	cdc_data[ch].ControlLineStateChanged = 0;
 }
 
-// Serial state notification =============================================
-struct cdc_seriastatenotif_  ssnotif = {
-	.bmRequestType = {.Recipient = USB_RQREC_INTERFACE, .Type = USB_RQTYPE_CLASS, .DirIn = 1},
-	.bNotification = CDC_NOTIFICATION_SERIAL_STATE,
-	.wIndex = 0,	// interface
-	.wLength = 2,	// size of wSerialState
-	.wSerialState = 0
-};
-
-// inline only to avoid not used warning
-static inline void send_serialstate_notif(uint8_t ch)
-{
-	ssnotif.wIndex = ConfigDesc.cdc[ch].cdcdesc.cdccomifdesc.bInterfaceNumber;	// interface
-	ssnotif.wSerialState = cdc_data[ch].SerialState;
-	USBdev_SendData(&usbdev, ConfigDesc.cdc[ch].cdcdesc.cdcnotif.bEndpointAddress,
-		(const uint8_t *)&ssnotif, sizeof(ssnotif), 0);
-	cdc_data[ch].SerialState &= CDC_SERIAL_STATE_TX_CARRIER | CDC_SERIAL_STATE_RX_CARRIER;	// reset other flags
-}
-
 // data reception and state change handler, priority lower than USB hw interrupt
 void VCOM_rx_IRQHandler(uint8_t ch)
 {
@@ -288,10 +297,11 @@ void VCOM_rx_IRQHandler(uint8_t ch)
 	if (cdc_data[ch].LineCodingChanged)
 	{
 		cdc_data[ch].LineCodingChanged = 0;
-		// if needed, handle here
+		// if needed, handle here (reprogram UART if used)
 	}
 	if (cdc_data[ch].ControlLineStateChanged)
 	{
+		// handle if not handled by LineStateHandler
 	}
 	if (cdc_data[ch].RxLength)
 	{

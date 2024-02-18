@@ -185,7 +185,8 @@ struct cdc_seriastatenotif_ {
 struct cdc_data_ {
 	struct cdc_linecoding_ LineCoding;
 	uint16_t ControlLineState;	// bit 0 - DTE ready, bit 1 - CD/RTS/RTR
-	uint16_t SerialState;
+	uint16_t SerialState;		// current SerialState
+	uint16_t SerialStateSent;	// last SerialState successfully sent
 	bool LineCodingChanged;
 	bool ControlLineStateChanged;
 	volatile bool connected;
