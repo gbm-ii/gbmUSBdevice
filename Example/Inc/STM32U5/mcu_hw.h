@@ -28,12 +28,12 @@
  */
 
 /*
- * Minimal clock setup routine for STM32L4 (teted on Nucleo-L476, L496, L4R5)
+ * Minimal clock setup routine for STM32U5 (-Q version with SMPS, tested on Nucleo-U545 and Nucleo-U585))
  * The routine may be replaced by any user-writen or CubeMX-generated HAL routine providing stable 48 MHz clock to USB peripheral.
  */
 
 #ifndef HCLK_FREQ
-#define HCLK_FREQ	240000000u
+#define HCLK_FREQ	160000000u
 #endif
 
 // frequency step for computing Flash wait states
@@ -45,7 +45,7 @@ static inline void ClockSetup(void)
 	RCC->AHB3ENR |= RCC_AHB3ENR_PWREN;
 	PWR->VOSR |= PWR_VOSR_BOOSTEN | PWR_VOSR_VOS;	// raise core voltage; 3 -> scale 1, for highest operating frequency
 	PWR->CR3 |= PWR_CR3_REGSEL;	// turn on SMPS
-	while (~PWR->SVMSR & PWR_SVMSR_REGS) ;
+	while (~PWR->SVMSR & PWR_SVMSR_REGS) ;	// wait for SMPS ready
 
 	// osc and PLL setup
 	RCC->CR |= RCC_CR_HSI48ON;
@@ -73,8 +73,8 @@ static inline void ClockSetup(void)
 	// switch to PLL
 	RCC->CFGR1 = RCC_CFGR1_SW_PLL1;
 	// select USB clock
-	//RCC->CCIPR1 = 0 << RCC_CCIPR1_ICLKSEL_Pos;	// HSI48 as USB clock - default after reset
-	//RCC->CCIPR4 = 1 << RCC_CCIPR4_USBSEL_Pos;	// PLL1Q as USB clock
+	//RCC->CCIPR1 = 0 << RCC_CCIPR1_ICLKSEL_Pos;	// HSI48 as USB clocka - default after reset
+	//RCC->CCIPR3 = 1 << RCC_CCIPR2_OTGHSSEL_Pos;	// PLL1P as USB HS clock (60 MHz)
 }
 
 /*
