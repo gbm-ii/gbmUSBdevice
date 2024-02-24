@@ -81,6 +81,8 @@ struct usbdcfg_ {
 	const struct USBdesc_device_ *devdesc;
 	const struct USBdesc_config_ *cfgdesc;
 	const uint8_t * const *strdesc;
+	const uint8_t hidrepdescsize;
+	const uint8_t * const hidrepdesc;
 };
 
 // EP0 State
@@ -123,6 +125,10 @@ struct usbdevice_ {
 #if USBD_PRINTER
 	const struct prn_services_ *prn_service;
 	struct prn_data_ *prn_data;
+#endif
+#ifdef USBD_HID
+	const struct hid_services_ *hid_service;
+	struct hid_data_ *hid_data;
 #endif
 };
 

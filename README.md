@@ -6,8 +6,8 @@ A compact, simple, HAL-free USB device stack for easy creation of composite devi
 Supported MCUs: STM32: F0x2, L0, L4, F4 (OTG FS only), G0B1, H503, L5, U535/545, U575/585.
 Planned support: STM32F103, STM32U59x and above, STM32H7, CH32X03.
 
-Supported USB classes: CDC ACM (VCP), Printer.
-Planned: HID, MSC BOT SCSI.
+Supported USB classes: CDC ACM (VCP), Printer, HID.
+Planned: MSC BOT SCSI.
 
 ## Quick start using STM32CubeIDE
 
@@ -31,6 +31,8 @@ To see the demo in action:
 - Connect the MCU's USB interface to a PC.
 - Open the terminal sessions for the VCPs (TeraTerm seems to be good choice for Windows); once connected, the demo displays prompt with the VCOM logical number in a terminal window.
 - The text typed in a terminal window is echoed. The text printed to the printer is displayed in VCOM0 terminal window.
+
+Composite device configuration may be changed by editing `usb_dev_config.h` file. Newly added HID keyboard demo was tested on U545.
 
 ## Using gbmUSBdevice with HAL & CubeMX-generated code
 

@@ -57,7 +57,10 @@ enum usb_desc_type {
 	USB_DESCTYPE_OTG,
 	USB_DESCTYPE_DEBUG,
 	USB_DESCTYPE_IAD,
-	USB_DESCTYPE_BOS = 0x0F
+	USB_DESCTYPE_BOS = 0x0F,
+	USB_DESCTYPE_HID = 0x21,
+	USB_DESCTYPE_HIDREPORT,
+	USB_DESCTYPE_HIDPHYSICAL,
 };
 
 // Feature selectors
@@ -78,7 +81,7 @@ enum usb_desc_type {
 #define USB_CLASS_RESERVED              0x00
 #define USB_CLASS_AUDIO                 0x01
 #define USB_CLASS_COMMUNICATIONS        0x02
-#define USB_CLASS_HUMAN_INTERFACE       0x03
+#define USB_CLASS_HID					0x03
 #define USB_CLASS_MONITOR               0x04
 #define USB_CLASS_PHYSICAL_INTERFACE    0x05
 #define USB_CLASS_POWER                 0x06

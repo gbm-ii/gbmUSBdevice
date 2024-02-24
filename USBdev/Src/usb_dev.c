@@ -84,9 +84,9 @@ static void USBdev_GetDescriptor(const struct usbdevice_ *usbd)
 	uint16_t size = 0;
 	USB_SetupPacket *req = &usbd->devdata->req;
 	
-    switch (req->wValue.b.h)
+	switch (req->wValue.b.h)
 	{
-    case USB_DESCTYPE_DEVICE:
+	case USB_DESCTYPE_DEVICE:
 		ptr = (const uint8_t *)usbd->cfg->devdesc;
 		if (req->wLength > *ptr)
 		{
@@ -94,21 +94,32 @@ static void USBdev_GetDescriptor(const struct usbdevice_ *usbd)
 			size = MIN(*ptr, usbd->cfg->devdesc->bMaxPacketSize0);
 			req->wLength = size;	// adjust to suppress automatic ZLP
 		}
-        break;
+		break;
 
-    case USB_DESCTYPE_CONFIGURATION:
+	case USB_DESCTYPE_CONFIGURATION:
 		ptr = (const uint8_t *)usbd->cfg->cfgdesc;
 		size = ptr[2] | ptr[3] << 8;
-        break;
+		break;
 
-    case USB_DESCTYPE_STRING:
+	case USB_DESCTYPE_STRING:
 		if (req->wValue.b.l < usbd->cfg->nstringdesc)
 			ptr = usbd->cfg->strdesc[req->wValue.b.l];
-        break;
-	
-    default:
-        break;
-    }
+		break;
+
+#if USBD_HID
+	case USB_DESCTYPE_HIDREPORT:
+		if (req->bmRequestType.Recipient == USB_RQREC_INTERFACE
+				&& req->wIndex.w == IFNUM_HID)
+		{
+			ptr = usbd->cfg->hidrepdesc;
+			size = MIN(req->wLength, usbd->cfg->hidrepdescsize);
+		}
+		break;
+#endif
+
+	default:
+		break;
+	}
 	if (ptr)
 	{
 		if (size == 0)

@@ -9,7 +9,7 @@
 #define USBD_MSC 0	// not supported yet
 #define USBD_CDC_CHANNELS	2
 #define USBD_PRINTER	1
-#define USBD_HID	0	// not supported yet
+#define USBD_HID	0	// new, tested on U545
 
 // synthesize PID from device config
 #define USBD_CFG_PID	((USBD_MSC) | USBD_CDC_CHANNELS << 1 \
@@ -25,9 +25,16 @@
 #define CDC_DATA_EP_SIZE	64u
 #define CDC_INT_EP_SIZE	10u	// serial state notification size is 10 bytes
 #define PRN_DATA_EP_SIZE	64u
+#define HID_IN_EP_SIZE	8u	// 8 bytes for keyboard report (flags, reserved, 6 keys)
+//#define HID_OUT_EP_SIZE	8u	// min. size
+
+#define HID_IN_REPORT_SIZE 	8u
+#define HID_OUT_REPORT_SIZE	8u
+
+#define HID_POLLING_INTERVAL	20u	// ms
+#define HID_DEFAULT_IDLE	(500u / 4)	// in 4 ms units
 
 //#define USE_COMMON_CDC_INT_IN_EP
-
 #define CDC_INT_POLLING_INTERVAL	10u	// ms
 
 // interface numbers - start at 0
@@ -48,6 +55,9 @@ enum usbd_ifnum_ {
 
 #if USBD_PRINTER
 	IFNUM_PRN,
+#endif
+#if USBD_HID
+	IFNUM_HID,
 #endif
 	USBD_NUM_INTERFACES	// number of interfaces
 };
@@ -80,6 +90,9 @@ enum usbd_epaddr_ {
 #if USBD_PRINTER
 	PRN_DATA_OUT_EP,
 #endif
+#if USBD_HID
+	HID_OUT_EP,
+#endif
 	USBD_OUT_EPS,	// no. of Out endpoints
 	
 // In endpoints
@@ -104,7 +117,12 @@ enum usbd_epaddr_ {
 #endif	// USBD_CDC_CHANNELS > 2
 #endif	// USBD_CDC_CHANNELS > 1
 #endif	// USBD_CDC_CHANNELS
-//	PRN_DATA_IN_EP,
+#if USBD_PRINTER
+	PRN_DATA_IN_EP,
+#endif
+#if USBD_HID
+	HID_IN_EP,
+#endif
 	USBD_IN_EPS	// no. of In endpoints
 };
 

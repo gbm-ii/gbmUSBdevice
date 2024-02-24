@@ -62,6 +62,34 @@ static struct cdc_data_ cdc_data[USBD_CDC_CHANNELS] = {
 static struct prn_data_ prn_data;
 #endif
 
+#if USBD_HID
+static struct hid_data_ hid_data;
+
+__attribute__ ((weak)) bool BtnGet(void)
+{
+	return 0;	// redefine to get button state
+}
+
+static bool HIDupdateKB(const struct usbdevice_ *usbd)
+{
+	bool change = (bool)hid_data.InReport[2] ^ BtnGet();
+	if (change)
+		hid_data.InReport[2] ^= HIDKB_KPADSTAR;
+	return change;
+}
+
+__attribute__ ((weak)) void LED_Set(bool on)
+{
+	// redefine to control board's LED
+}
+
+static void HIDsetLEDs(const struct usbdevice_ *usbd)
+{
+	// set onboard LED to ScrollLock status
+	LED_Set(hid_data.OutReport[0] & HIDKB_MSK_SCROLLLOCK);
+}
+#endif
+
 // endpoint data =========================================================
 static _Alignas(USB_SetupPacket) uint8_t ep0outpkt[USBD_CTRL_EP_SIZE];	// Control EP Rx buffer
 
@@ -85,6 +113,9 @@ static struct epdata_ out_epdata[USBD_NUM_EPPAIRS] = {
 #endif	// USBD_CDC_CHANNELS
 #if USBD_PRINTER
 	{.ptr = prn_data.RxData, .count = 0},
+#endif
+#if USBD_HID
+	{.ptr = hid_data.OutReport}
 #endif
 };
 
@@ -264,9 +295,29 @@ void usbdev_tick(void)
 		if (cdcp->SerialState != cdcp->SerialStateSent)
 			send_serialstate_notif(ch);
 	}
-#endif
+#endif	// USBD_CDC_CHANNELS
 #if USBD_HID
-#endif
+	if (hid_data.SampleTimer == 0)
+	{
+		// initialize once
+		hid_data.SampleTimer = HID_POLLING_INTERVAL;
+		hid_data.Idle = HID_DEFAULT_IDLE;
+		hid_data.ReportTimer = HID_POLLING_INTERVAL;
+	}
+	else if (--hid_data.SampleTimer == 0)
+	{
+		hid_data.SampleTimer = HID_POLLING_INTERVAL;
+		if (HIDupdateKB(&usbdev))
+			hid_data.InRq = 1;
+	}
+	if (((hid_data.ReportTimer && --hid_data.ReportTimer == 0) || hid_data.InRq)
+		&& USBdev_SendData(&usbdev, HID_IN_EP, (const uint8_t *)hid_data.InReport, sizeof(hid_data.InReport), 0) == 0)
+	{
+		hid_data.ReportTimer = hid_data.Idle * 4 > HID_POLLING_INTERVAL ? hid_data.Idle * 4 : HID_POLLING_INTERVAL;
+		hid_data.InRq = 0;
+	}
+
+#endif	// USBD_HID
 }
 
 #if USBD_CDC_CHANNELS
@@ -377,6 +428,48 @@ void VCOM2_tx_IRQHandler(void)
 #endif	// USBD_CDC_CHANNELS > 1
 #endif	// USBD_CDC_CHANNELS
 
+#if USBD_HID
+// HID keyboard report descriptor
+const uint8_t hid_report_desc[] = {
+	0x05, 0x01,	//	Usage Page (Generic Desktop)
+	0x09, 0x06,	//	Usage (Keyboard)
+	0xA1, 0x01,	//	Collection (Application)
+
+	0x05, 0x07,	//	Usage Page (Key Codes);
+	0x19, 0xe0,	//	Usage Minimum (224)
+	0x29, 0xE7,	//	Usage Maximum (231)
+	0x15, 0x00,	//	Logical Minimum (0)
+	0x25, 0x01,	//	Logical Maximum (1)
+	0x75, 0x01,	//	Report Size (1)
+	0x95, 0x08,	//	Report Count (8)
+	0x81, 0x02,	//	Input (Data, Variable, Absolute); Modifier byte
+	0x95, 0x01,	//	Report Count (1)
+	0x75, 0x08,	//	Report Size (8)
+	0x81, 0x01,	//	Input (Constant), reserved byte
+
+	0x95, 0x05,	//	Report Count (was 5)
+	0x75, 0x01,	//	Report Size (1)
+	0x05, 0x08,	//	Usage Page (Page# for LEDs)
+	0x19, HID_LED_NUMLOCK,	//	Usage Minimum (1)
+	0x29, HID_LED_KANA,	//	Usage Maximum (originally 5 - Kana)
+	0x91, 0x02,	//	Output (Data, Variable, Absolute); LED report
+	0x95, 0x01,	//	Report Count (1)
+	0x75, 0x03,	//	Report Size (was 3)
+	0x91, 0x01,	//	Output (Constant); LED report padding
+
+	0x95, 0x06,	//	Report Count (6)
+	0x75, 0x08,	//	Report Size (8)
+	0x15, 0x00,	//	Logical Minimum (0)
+	0x25, 0x65,	//	Logical Maximum(101)
+	0x05, 0x07,	//	Usage Page (Key Codes)
+	0x19, 0x00,	//	Usage Minimum (0)
+	0x29, 0x65,	//	Usage Maximum (101)
+	0x81, 0x00,	//	Input (Data Array); (6 bytes)
+
+	0xC0	//	End Collection
+};
+#endif
+
 // Application routines ==================================================
 
 // called form USB hw interrupt
@@ -454,6 +547,11 @@ void DataSentHandler(const struct usbdevice_ *usbd, uint8_t epn)
 	}
 }
 
+void HIDoutHandler(const struct usbdevice_ *usbd, uint8_t epn)
+{
+	hid_data.OutReport[2] = hid_data.OutReport[0];
+}
+
 // USB descriptors =======================================================
 // start with string descriptors since they are referenced in other descriptors
 STRLANGID(sdLangID, USB_LANGID_US);
@@ -472,6 +570,9 @@ STRINGDESC(sdVcom1, u"VCOM1");
 #if USBD_PRINTER
 STRINGDESC(sdPrinter, u"gbmPrinter");
 #endif
+#if USBD_HID
+STRINGDESC(sdHID, u"gbmHID");
+#endif
 
 // string descriptor numbering - must match the order in string desc table
 enum usbd_sidx_ {
@@ -488,6 +589,9 @@ enum usbd_sidx_ {
 #endif
 #if USBD_PRINTER
 	USBD_SIDX_PRINTER,
+#endif
+#if USBD_HID
+	USBD_SIDX_HID,
 #endif
 	USBD_NSTRINGDESCS	// the last value - must be here
 };
@@ -506,6 +610,9 @@ static const uint8_t * const strdescv[USBD_NSTRINGDESCS] = {
 #endif
 #if USBD_PRINTER
 	&sdPrinter.bLength,
+#endif
+#if USBD_HID
+	&sdHID.bLength,
 #endif
 };
 
@@ -603,10 +710,14 @@ static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc = {
 #endif
 #if USBD_HID
 	.hid = {
-		.hidifdesc = IFDESC(IFNUM_HID, 1, USB_CLASS_HID, HID_SUBCLASS_NONE, PROTOCOL_, USBD_SIDX_HID),
-		.hid_desc =
-		.hidin = EPDESC(HID_IN_EP, USBD_EP_TYPE_INTR, HID_EP_SIZE, 10)
-	};
+		.hidifdesc = IFDESC(IFNUM_HID, 1, USB_CLASS_HID, HID_SUBCLASS_NONE, HID_PROTOCOL_KB, USBD_SIDX_HID),
+		.hiddesc = {
+			.bLength = sizeof(struct USBdesc_hid_), .bDescriptorType = USB_DESCTYPE_HID, .bcdHID = USB16(0x101),
+			.bCountryCode = 0, .bNumDescriptors = 1, .bHidDescriptorType = USB_DESCTYPE_HIDREPORT,
+			.wDescriptorLength = USB16(sizeof(hid_report_desc))
+		},
+		.hidin = EPDESC(HID_IN_EP, USBD_EP_TYPE_INTR, HID_IN_EP_SIZE, HID_POLLING_INTERVAL),
+	},
 #endif
 };
 #endif
@@ -634,6 +745,9 @@ static const struct epcfg_ outcfg[USBD_NUM_EPPAIRS] = {
 #if USBD_PRINTER
 	{.ifidx = IFNUM_PRN, .handler = DataReceivedHandler},
 #endif
+#if USBD_HID
+	{.ifidx = IFNUM_HID, .handler = HIDoutHandler},
+#endif
 };
 static const struct epcfg_ incfg[USBD_NUM_EPPAIRS] = {
 	{.ifidx = 0, .handler = 0},
@@ -658,6 +772,9 @@ static const struct epcfg_ incfg[USBD_NUM_EPPAIRS] = {
 #if USBD_PRINTER
 	{.ifidx = IFNUM_PRN, .handler = DataSentHandler},
 #endif
+#if USBD_HID
+	{.ifidx = IFNUM_HID, },
+#endif
 };
 
 // class and instance index for each interface - required for handling class requests
@@ -680,6 +797,9 @@ const struct ifassoc_ if2fun[USBD_NUM_INTERFACES] = {
 #if USBD_PRINTER
 	[IFNUM_PRN] = {.classid = USB_CLASS_PRINTER, .funidx = 0},
 #endif
+#if USBD_HID
+	[IFNUM_HID] = {.classid = USB_CLASS_HID, .funidx = 0},
+#endif
 };
 
 // device config options and descriptors - constant ======================
@@ -695,6 +815,10 @@ static const struct usbdcfg_ usbdcfg = {
 	.devdesc = &DevDesc,
 	.cfgdesc = &ConfigDesc.cfgdesc,
 	.strdesc = (const uint8_t **)strdescv,
+#if USBD_HID
+	.hidrepdescsize = sizeof(hid_report_desc),
+	.hidrepdesc = hid_report_desc
+#endif
 };
 
 static struct usbdevdata_ uddata;	// device data and status
@@ -712,6 +836,13 @@ static const struct prn_services_ prn_service = {
 };
 #endif
 
+#if USBD_HID
+static const struct hid_services_ hid_service = {
+	.UpdateIn = HIDupdateKB,
+	.UpdateOut = HIDsetLEDs,
+};
+#endif
+
 // main device data structure - const with pointers to const & variable structures
 const struct usbdevice_ usbdev = {
 	.usb = (void *)USB_BASE,
@@ -726,6 +857,10 @@ const struct usbdevice_ usbdev = {
 #if USBD_PRINTER
 	.prn_service = &prn_service,
 	.prn_data = &prn_data,
+#endif
+#if USBD_HID
+	.hid_service = &hid_service,
+	.hid_data = &hid_data,
 #endif
 };
 

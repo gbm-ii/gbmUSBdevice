@@ -9,10 +9,25 @@
 #include "mcu_hw.h"		// in Example/Inc/<mcu_series> directory
 #include "usb_app.h"	// in USBdevice/Inc
 
+void LED_Set(bool on)
+{
+	hwLED_Set(on);
+}
+
+bool BtnGet(void)
+{
+#ifdef BTN_PORT
+	return BTN_DOWN;
+#else
+	return 0;
+#endif
+}
+
 // usbdev demo application
 static void usbdev_main(void)
 {
 	ClockSetup();	// Setup MCU and USB peripheral clock - may be replaced by CubeMX/HAL routine
+	LED_Btn_Setup();
 	USBhwSetup();	// Turn on USB peripheral and setup its pins - may be replaced by CubeMX/HAL routine
 
 	USBapp_Init();	// Initialize and start USB stack

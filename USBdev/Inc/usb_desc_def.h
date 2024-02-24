@@ -286,7 +286,7 @@ struct cfgdesc_msc_ncdc_prn_ {
 	struct prndesc_ prn;
 #endif
 #if USBD_HID
-	struct hid_fun_desc_ hid;
+	struct hid_inonly_desc_ hid;
 #endif
 };
 

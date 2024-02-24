@@ -32,6 +32,7 @@
 #include "usb_hw_if.h"
 #include "usb_class_cdc.h"
 #include "usb_class_prn.h"
+#include "usb_class_hid.h"
 
 uint8_t msc_max_lun = 0;
 
@@ -154,12 +155,54 @@ void USBclass_HandleRequest(const struct usbdevice_ *usbd)
 					USBdev_CtrlError(usbd);// should stall on unhandled requests
 				}
 				break;	// USB_CLASS_COMMUNICATIONS
-#endif
+#endif // USBD_CDC_CHANNELS
+
 #if USBD_HID
-			case USB_CLASS_HUMAN_INTERFACE:	// not supported yet
-				USBdev_CtrlError(usbd);
+			case USB_CLASS_HID:	// only single report in+out supported - enough for kb, mouse etc.
+				switch (req->bRequest)
+				{
+				case HIDRQ_GET_REPORT:
+					USBdev_SendStatus(usbd,
+						req->wValue.b.h == HID_REPORTTYPE_OUT // output report (report id in .l - assume 0)
+							? (const uint8_t *)&usbd->hid_data->OutReport
+							: (const uint8_t *)&usbd->hid_data->InReport,
+						req->wLength, 0);
+					break;
+
+				case HIDRQ_GET_IDLE:
+					USBdev_SendStatus(usbd, (const uint8_t *)&usbd->hid_data->Idle, 1, 0);
+					break;
+
+				case HIDRQ_GET_PROTOCOL:
+					USBdev_SendStatus(usbd, (const uint8_t *)&usbd->hid_data->Protocol, 1, 0);
+					break;
+
+				case HIDRQ_SET_REPORT:
+					if (req->wValue.b.h == HID_REPORTTYPE_OUT)
+					{
+						memcpy(usbd->hid_data->OutReport, usbd->outep[0].ptr, MIN(req->wLength, HID_OUT_REPORT_SIZE));
+						if (usbd->hid_service->UpdateOut)
+							usbd->hid_service->UpdateOut(usbd);
+					}
+					USBdev_SendStatusOK(usbd);
+					break;
+
+				case HIDRQ_SET_IDLE:
+					usbd->hid_data->Idle = req->wValue.b.h;
+					USBdev_SendStatusOK(usbd);
+					break;
+
+				case HIDRQ_SET_PROTOCOL:
+					usbd->hid_data->Protocol = req->wValue.b.l;
+					USBdev_SendStatusOK(usbd);
+					break;
+
+				default:
+					USBdev_CtrlError(usbd);
+				}
 				break;
-#endif
+#endif // USBD_HID
+
 #if USBD_PRINTER
 			case USB_CLASS_PRINTER:
 				// assume only single printer function

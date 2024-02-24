@@ -22,6 +22,7 @@
 #include "usb_desc_def.h"
 #include "usb_class_cdc.h"
 #include "usb_class_prn.h"
+#include "usb_class_hid.h"
 
 // language identifier string descriptor structure
 struct langid_ {uint8_t bLength, type; uint16_t v;};
