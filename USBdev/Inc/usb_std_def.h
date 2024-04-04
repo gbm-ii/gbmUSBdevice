@@ -96,7 +96,4 @@ enum usb_desc_type {
 #define USB_EPTYPE_BULK	2
 #define USB_EPTYPE_INT	3
 
-/* Interface Class SubClass Codes */
-#define USB_SUBCLASS_CDCACM 0x02
-
 #endif

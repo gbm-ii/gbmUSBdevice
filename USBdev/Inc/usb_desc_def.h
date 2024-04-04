@@ -196,6 +196,11 @@ struct cdc_desc_ {
 };
 
 // CDC device as a member of composite device
+struct cdc_single_desc_ {
+	struct cdc_desc_ cdcdesc;
+};
+
+// CDC device as a member of composite device
 struct cdc_comp_desc_ {
 	struct USBdesc_IAD_ cdciad;
 	struct cdc_desc_ cdcdesc;
@@ -243,7 +248,7 @@ struct hid_inout_desc_ {
 // dev., single CDC
 struct cfgdesc_cdc_ {
 	struct USBdesc_config_ cfgdesc;
-	struct cdc_desc_ cdc;
+	struct cdc_single_desc_ cdc[1];
 };
 
 // dev., single MSC

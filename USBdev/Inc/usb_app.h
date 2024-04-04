@@ -10,5 +10,6 @@
 
 void usbdev_tick(void);
 void USBapp_Init(void);
+void USBapp_Poll(void);
 
 #endif /* INC_USB_APP_H_ */

@@ -1,6 +1,6 @@
 /* 
  * lightweight USB device stack by gbm
- * usb_app.c - event-driven composite device application example
+ * usb_app_simple.c - single CDC ACM VCP application example
  * Copyright (c) 2022..2024 gbm
  * 
  * This program is free software: you can redistribute it and/or modify  
@@ -16,7 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SIMPLE_CDC
+#ifdef SIMPLE_CDC
 
 #include <string.h>
 #include <stdio.h>
@@ -32,65 +32,24 @@
 
 #include "usbdev_binding.h"
 
-// forward def
-static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc;
+// forward decl
+static const struct cfgdesc_cdc_ ConfigDesc;
 
 #define SIGNON_DELAY	50u
-#define SIGNON0	"\r\nVCOM0 ready\r\n"
-#define SIGNON1	"\r\nVCOM1 ready\r\n"
-#define SIGNON2	"\r\nVCOM2 ready\r\n"
-#define PROMPT	">"
+#define SIGNON0	"\r\nVCOM ready\r\n"
+#define PROMPT0	">"
 
 #define TX_TOUT	2u	// Tx timeout when buffer not empty in ms
 
-void LED_Toggle(void);	// in main.c
-//========================================================================
-// VCOM channel data
+// VCOM channel data =====================================================
 
 #if defined(USBD_CDC_CHANNELS) && USBD_CDC_CHANNELS
 // define in usb_app.c
 static struct cdc_data_ cdc_data[USBD_CDC_CHANNELS] = {
 	[0] = {.LineCoding = {.dwDTERate = 115200, .bDataBits = 8}},
-#if USBD_CDC_CHANNELS > 1
-	[1] = {.LineCoding = {.dwDTERate = 115200, .bDataBits = 8}},
-#if USBD_CDC_CHANNELS > 2
-	[2] = {.LineCoding = {.dwDTERate = 115200, .bDataBits = 8}},
-#endif	// USBD_CDC_CHANNELS > 2
-#endif	// USBD_CDC_CHANNELS > 1
 };
 #endif	// USBD_CDC_CHANNELS
 
-#if USBD_PRINTER
-static struct prn_data_ prn_data;
-#endif
-
-#if USBD_HID
-static struct hid_data_ hid_data;
-
-__attribute__ ((weak)) bool BtnGet(void)
-{
-	return 0;	// redefine to get button state
-}
-
-static bool HIDupdateKB(const struct usbdevice_ *usbd)
-{
-	bool change = (bool)hid_data.InReport[2] ^ BtnGet();
-	if (change)
-		hid_data.InReport[2] ^= HIDKB_KPADSTAR;
-	return change;
-}
-
-__attribute__ ((weak)) void LED_Set(bool on)
-{
-	// redefine to control board's LED
-}
-
-static void HIDsetLEDs(const struct usbdevice_ *usbd)
-{
-	// set onboard LED to ScrollLock status
-	LED_Set(hid_data.OutReport[0] & HIDKB_MSK_SCROLLLOCK);
-}
-#endif
 
 // endpoint data =========================================================
 static _Alignas(USB_SetupPacket) uint8_t ep0outpkt[USBD_CTRL_EP_SIZE];	// Control EP Rx buffer
@@ -100,25 +59,7 @@ static struct epdata_ out_epdata[USBD_NUM_EPPAIRS] = {
 #if USBD_CDC_CHANNELS
 	{.ptr = 0, .count = 0},	// unused
 	{.ptr = cdc_data[0].RxData, .count = 0},
-#if USBD_CDC_CHANNELS > 1
-#ifndef USE_COMMON_CDC_INT_IN_EP
-	{.ptr = 0, .count = 0},	// unused
-#endif
-	{.ptr = cdc_data[1].RxData, .count = 0},
-#if USBD_CDC_CHANNELS > 2
-#ifndef USE_COMMON_CDC_INT_IN_EP
-	{.ptr = 0, .count = 0},	// unused
-#endif
-	{.ptr = cdc_data[2].RxData, .count = 0},
-#endif	// USBD_CDC_CHANNELS > 2
-#endif	// USBD_CDC_CHANNELS > 1
 #endif	// USBD_CDC_CHANNELS
-#if USBD_PRINTER
-	{.ptr = prn_data.RxData, .count = 0},
-#endif
-#if USBD_HID
-	{.ptr = hid_data.OutReport}
-#endif
 };
 
 static struct epdata_ in_epdata[USBD_NUM_EPPAIRS]; // no need to init
@@ -130,18 +71,12 @@ struct vcomcfg_ {
 	const char *signon, *prompt;
 };
 
-const struct vcomcfg_ vcomcfg[USBD_CDC_CHANNELS] = {
-	{VCOM0_rx_IRQn, VCOM0_tx_IRQn, SIGNON0, ">"},
-#if USBD_CDC_CHANNELS > 1
-	{VCOM1_rx_IRQn, VCOM1_tx_IRQn, SIGNON1},
-#if USBD_CDC_CHANNELS > 2
-	{VCOM2_rx_IRQn, VCOM2_tx_IRQn, SIGNON2},
-#endif	// USBD_CDC_CHANNELS > 2
-#endif	// USBD_CDC_CHANNELS > 1
+static const struct vcomcfg_ vcomcfg[USBD_CDC_CHANNELS] = {
+	{VCOM0_rx_IRQn, VCOM0_tx_IRQn, SIGNON0, PROMPT0},
 };
 
 // put character into sendbuf, generate send packet request event
-void vcom_putchar(uint8_t ch, char c)
+static void vcom_putchar(uint8_t ch, char c)
 {
 	if (ch < USBD_CDC_CHANNELS)
 	{
@@ -165,13 +100,14 @@ void vcom_putchar(uint8_t ch, char c)
 	}
 }
 
-void vcom_putstring(uint8_t ch, const char *s)
+static void vcom_putstring(uint8_t ch, const char *s)
 {
 	if (ch < USBD_CDC_CHANNELS && s)
 		while (*s)
 			vcom_putchar(ch, *s++);
 }
 
+// vcom0 tx/in app interface functions ===================================
 void vcom0_putc(uint8_t c)
 {
 	vcom_putchar(0, c);
@@ -181,32 +117,6 @@ void vcom0_putstring(const char *s)
 {
 	vcom_putstring(0, s);
 }
-
-#if USBD_CDC_CHANNELS > 1
-void vcom1_putc(uint8_t c)
-{
-	vcom_putchar(1, c);
-}
-
-void vcom1_putstring(const char *s)
-{
-	vcom_putstring(1, s);
-}
-
-#if USBD_CDC_CHANNELS > 2
-void vcom2_putc(uint8_t c)
-{
-	vcom_putchar(2, c);
-}
-
-void vcom2_putstring(const char *s)
-{
-	vcom_putstring(2, s);
-}
-
-#endif	// USBD_CDC_CHANNELS > 2
-#endif	// USBD_CDC_CHANNELS > 1
-
 // Serial state notification =============================================
 struct cdc_SerialStateNotif_  ssnotif = {
 	.bmRequestType = {.Recipient = USB_RQREC_INTERFACE, .Type = USB_RQTYPE_CLASS, .DirIn = 1},
@@ -251,21 +161,23 @@ static void allow_rx(uint8_t epn)
 	__enable_irq();
 }
 
-#if USBD_PRINTER
-
-void PRN_rx_IRQHandler(void)
+// vcom0 rx/out polled app interface =====================================
+bool vcom0_rxrdy(void)
 {
-	if (prn_data.RxLength)
-	{
-		uint8_t *rxptr = prn_data.RxData; //
-		for (uint8_t i = 0; i < prn_data.RxLength; i++)
-			process_input(0, *rxptr++);	// same handling as vcom0
-		prn_data.RxLength = 0;
-		allow_rx(PRN_DATA_OUT_EP);
-	}
+	return cdc_data[0].RxLength;
 }
-#endif
 
+uint8_t vcom0_getc(void)
+{
+	while (!vcom0_rxrdy()) ;
+	uint8_t c = cdc_data[0].RxData[cdc_data[0].RxIdx];
+	if (++cdc_data[0].RxIdx == cdc_data[0].RxLength)
+	{
+		cdc_data[0].RxLength = 0;
+		allow_rx(ConfigDesc.cdc[0].cdcdesc.cdcout.bEndpointAddress);
+	}
+	return c;
+}
 //========================================================================
 uint32_t usbdev_msec;
 
@@ -298,28 +210,6 @@ void usbdev_tick(void)
 			send_serialstate_notif(ch);
 	}
 #endif	// USBD_CDC_CHANNELS
-#if USBD_HID
-	if (hid_data.SampleTimer == 0)
-	{
-		// initialize once
-		hid_data.SampleTimer = HID_POLLING_INTERVAL;
-		hid_data.Idle = HID_DEFAULT_IDLE;
-		hid_data.ReportTimer = HID_POLLING_INTERVAL;
-	}
-	else if (--hid_data.SampleTimer == 0)
-	{
-		hid_data.SampleTimer = HID_POLLING_INTERVAL;
-		if (HIDupdateKB(&usbdev))
-			hid_data.InRq = 1;
-	}
-	if (((hid_data.ReportTimer && --hid_data.ReportTimer == 0) || hid_data.InRq)
-		&& USBdev_SendData(&usbdev, HID_IN_EP, (const uint8_t *)hid_data.InReport, sizeof(hid_data.InReport), 0) == 0)
-	{
-		hid_data.ReportTimer = hid_data.Idle * 4 > HID_POLLING_INTERVAL ? hid_data.Idle * 4 : HID_POLLING_INTERVAL;
-		hid_data.InRq = 0;
-	}
-
-#endif	// USBD_HID
 }
 
 #if USBD_CDC_CHANNELS
@@ -356,6 +246,7 @@ void VCOM_rx_IRQHandler(uint8_t ch)
 	{
 		// handle if not handled by LineStateHandler
 	}
+#ifndef POLL
 	if (cdc_data[ch].RxLength)
 	{
 		uint8_t *rxptr = cdc_data[ch].RxData; //
@@ -364,6 +255,7 @@ void VCOM_rx_IRQHandler(uint8_t ch)
 		cdc_data[ch].RxLength = 0;
 		allow_rx(ConfigDesc.cdc[ch].cdcdesc.cdcout.bEndpointAddress);
 	}
+#endif
 	if (cdc_data[ch].signon_rq)
 	{
 		cdc_data[ch].signon_rq = 0;
@@ -403,79 +295,7 @@ void VCOM0_tx_IRQHandler(void)
 	VCOM_tx_IRQHandler(0);
 }
 
-#if USBD_CDC_CHANNELS > 1
-void VCOM1_rx_IRQHandler(void)
-{
-	VCOM_rx_IRQHandler(1);
-}
-
-// transmit handler, must have the same priority as USB hw interrupt
-void VCOM1_tx_IRQHandler(void)
-{
-	VCOM_tx_IRQHandler(1);
-}
-
-#if USBD_CDC_CHANNELS > 2
-void VCOM2_rx_IRQHandler(void)
-{
-	VCOM_rx_IRQHandler(2);
-}
-
-// transmit handler, must have the same priority as USB hw interrupt
-void VCOM2_tx_IRQHandler(void)
-{
-	VCOM_tx_IRQHandler(2);
-}
-#endif	// USBD_CDC_CHANNELS > 2
-#endif	// USBD_CDC_CHANNELS > 1
 #endif	// USBD_CDC_CHANNELS
-
-#if USBD_HID
-// HID keyboard report descriptor
-const uint8_t hid_report_desc[] = {
-	0x05, 0x01,	//	Usage Page (Generic Desktop)
-	0x09, 0x06,	//	Usage (Keyboard)
-	0xA1, 0x01,	//	Collection (Application)
-
-	0x05, 0x07,	//	Usage Page (Key Codes);
-	0x19, 0xe0,	//	Usage Minimum (224)
-	0x29, 0xE7,	//	Usage Maximum (231)
-	0x15, 0x00,	//	Logical Minimum (0)
-	0x25, 0x01,	//	Logical Maximum (1)
-	0x75, 0x01,	//	Report Size (1)
-	0x95, 0x08,	//	Report Count (8)
-	0x81, 0x02,	//	Input (Data, Variable, Absolute); Modifier byte
-	0x95, 0x01,	//	Report Count (1)
-	0x75, 0x08,	//	Report Size (8)
-	0x81, 0x01,	//	Input (Constant), reserved byte
-
-	0x95, 0x05,	//	Report Count (was 5)
-	0x75, 0x01,	//	Report Size (1)
-	0x05, 0x08,	//	Usage Page (Page# for LEDs)
-	0x19, HID_LED_NUMLOCK,	//	Usage Minimum (1)
-	0x29, HID_LED_KANA,	//	Usage Maximum (originally 5 - Kana)
-	0x91, 0x02,	//	Output (Data, Variable, Absolute); LED report
-	0x95, 0x01,	//	Report Count (1)
-	0x75, 0x03,	//	Report Size (was 3)
-	0x91, 0x01,	//	Output (Constant); LED report padding
-
-	0x95, 0x06,	//	Report Count (6)
-	0x75, 0x08,	//	Report Size (8)
-	0x15, 0x00,	//	Logical Minimum (0)
-	0x25, 0x65,	//	Logical Maximum(101)
-	0x05, 0x07,	//	Usage Page (Key Codes)
-	0x19, 0x00,	//	Usage Minimum (0)
-	0x29, 0x65,	//	Usage Maximum (101)
-	0x81, 0x00,	//	Input (Data Array); (6 bytes)
-
-	0xC0	//	End Collection
-};
-
-void HIDoutHandler(const struct usbdevice_ *usbd, uint8_t epn)
-{
-	hid_data.OutReport[2] = hid_data.OutReport[0];
-}
-#endif
 
 
 // Application routines ==================================================
@@ -486,42 +306,18 @@ void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
 	uint16_t length = usbd->outep[epn].count;
 	if (length)
 	{
-#ifdef xUSBLOG
-		if (epn == CDC0_DATA_OUT_EP && *cdc0RxData == 'l')
-		{
-			char s[80];
-			length = USBlog_get(s);
-			USBdev_SendData(usbd, CDC0_DATA_IN_EP, (const uint8_t *)s, length, 1);
-		}
-		else
-#endif
 		{
 			switch (epn)
 			{
 #if USBD_CDC_CHANNELS
 			case CDC0_DATA_OUT_EP:
+				cdc_data[0].RxIdx = 0;	// for polled only
 				cdc_data[0].RxLength = length;
+#ifndef POLL
 				NVIC_SetPendingIRQ(VCOM0_rx_IRQn);
+#endif	// POLL
 				break;
-#if USBD_CDC_CHANNELS > 1
-			case CDC1_DATA_OUT_EP:
-				cdc_data[1].RxLength = length;
-				NVIC_SetPendingIRQ(VCOM1_rx_IRQn);
-				break;
-#if USBD_CDC_CHANNELS > 2
-			case CDC2_DATA_OUT_EP:
-				cdc_data[2].RxLength = length;
-				NVIC_SetPendingIRQ(VCOM2_rx_IRQn);
-				break;
-#endif	// USBD_CDC_CHANNELS > 2
-#endif	// USBD_CDC_CHANNELS > 1
 #endif	// USBD_CDC_CHANNELS
-#if USBD_PRINTER
-			case PRN_DATA_OUT_EP:
-				prn_data.RxLength = length;
-				NVIC_SetPendingIRQ(PRN_rx_IRQn);
-				break;
-#endif
 			}
 		}
 	}
@@ -539,16 +335,6 @@ void DataSentHandler(const struct usbdevice_ *usbd, uint8_t epn)
 	case CDC0_DATA_IN_EP:
 		NVIC_EnableIRQ(VCOM0_tx_IRQn);
 		break;
-#if USBD_CDC_CHANNELS > 1
-	case CDC1_DATA_IN_EP:
-		NVIC_EnableIRQ(VCOM1_tx_IRQn);
-		break;
-#if USBD_CDC_CHANNELS > 2
-	case CDC2_DATA_IN_EP:
-		NVIC_EnableIRQ(VCOM2_tx_IRQn);
-		break;
-#endif	// USBD_CDC_CHANNELS > 2
-#endif	// USBD_CDC_CHANNELS > 1
 #endif	// USBD_CDC_CHANNELS
 	default:
 
@@ -559,42 +345,18 @@ void DataSentHandler(const struct usbdevice_ *usbd, uint8_t epn)
 // start with string descriptors since they are referenced in other descriptors
 STRLANGID(sdLangID, USB_LANGID_US);
 STRINGDESC(sdVendor, u"gbm");
-STRINGDESC(sdName, u"Comp");
+STRINGDESC(sdName, u"VCP");
 STRINGDESC(sdSerial, u"0001");
-#if USBD_MSC
-STRINGDESC(sdMSC, u"MassStorage");
-#endif
 #if USBD_CDC_CHANNELS
 STRINGDESC(sdVcom0, u"VCOM0");
-#if USBD_CDC_CHANNELS > 1
-STRINGDESC(sdVcom1, u"VCOM1");
-#endif
-#endif
-#if USBD_PRINTER
-STRINGDESC(sdPrinter, u"gbmPrinter");
-#endif
-#if USBD_HID
-STRINGDESC(sdHID, u"gbmHID");
 #endif
 
 // string descriptor numbering - must match the order in string desc table
 enum usbd_sidx_ {
 	USBD_SIDX_LANGID,
 	USBD_SIDX_MFG, USBD_SIDX_PRODUCT, USBD_SIDX_SERIALNUM,
-#if USBD_MSC
-	USBD_SIDX_FUN_MSC,
-#endif
 #if USBD_CDC_CHANNELS
 	USBD_SIDX_FUN_VCOM0,
-#if USBD_CDC_CHANNELS > 1
-	USBD_SIDX_FUN_VCOM1,
-#endif
-#endif
-#if USBD_PRINTER
-	USBD_SIDX_PRINTER,
-#endif
-#if USBD_HID
-	USBD_SIDX_HID,
 #endif
 	USBD_NSTRINGDESCS	// the last value - must be here
 };
@@ -607,19 +369,9 @@ static const uint8_t * const strdescv[USBD_NSTRINGDESCS] = {
 	&sdSerial.bLength,
 #if USBD_CDC_CHANNELS
 	&sdVcom0.bLength,
-#if USBD_CDC_CHANNELS > 1
-	&sdVcom1.bLength,
-#endif
-#endif
-#if USBD_PRINTER
-	&sdPrinter.bLength,
-#endif
-#if USBD_HID
-	&sdHID.bLength,
 #endif
 };
 
-#if 0
 // device descriptor for single function CDC ACM
 static const struct USBdesc_device_ DevDesc = {
 	.bLength = sizeof(struct USBdesc_device_),
@@ -650,159 +402,34 @@ static const struct cfgdesc_cdc_ ConfigDesc = {
 		.bmAttributes = USB_CONFIGD_BUS_POWERED,
 		.bMaxPower = USB_CONFIGD_POWER_mA(100)
 	},
-	.cdc = CDCVCOMDESC(IFNUM_CDC0_CONTROL, CDC0_INT_IN_EP, CDC0_DATA_IN_EP, CDC0_DATA_OUT_EP, CDCACM_FDCAP_LC_LS)
-};
-#else
-// general composite device
-static const struct USBdesc_device_ DevDesc = {
-	.bLength = sizeof(struct USBdesc_device_),
-	.bDescriptorType = USB_DESCTYPE_DEVICE,
-	.bcdUSB = 0x200,
-	.bDeviceClass = USB_CLASS_MISCELLANEOUS,
-	.bDeviceSubClass = 2,
-	.bDeviceProtocol = 1,	// composite device
-	.bMaxPacketSize0 = USBD_CTRL_EP_SIZE,
-	.idVendor = USB_VID,
-	.idProduct = USB_PID,	// was +2 with 8B EP0
-	.bcdDevice = 0x0001,	// device version
-	.iManufacturer = USBD_SIDX_MFG,
-	.iProduct = USBD_SIDX_PRODUCT,
-	.iSerialNumber = USBD_SIDX_SERIALNUM,
-	.bNumConfigurations = 1
-};
-static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc = {
-	.cfgdesc = {
-		.bLength = sizeof(struct USBdesc_config_),
-		.bDescriptorType = USB_DESCTYPE_CONFIGURATION,
-		.wTotalLength = USB16(sizeof(ConfigDesc)),
-		.bNumInterfaces = USBD_NUM_INTERFACES,
-		.bConfigurationValue = 1,
-		.iConfiguration = 0,
-		.bmAttributes = USB_CONFIGD_BUS_POWERED,
-		.bMaxPower = USB_CONFIGD_POWER_mA(100)
-	},
-#if USBD_MSC
-	.msc = MSCBOTSCSIDESC(IFNUM_MSC, MSC_BOT_IN_EP, MSC_BOT_OUT_EP, USBD_SIDX_FUN_MSC),
-#endif
-#if USBD_CDC_CHANNELS
 	.cdc = {
 		[0] = {
-			.cdciad = CDCVCOMIAD(IFNUM_CDC0_CONTROL, USBD_SIDX_FUN_VCOM0),
 			.cdcdesc = CDCVCOMDESC(IFNUM_CDC0_CONTROL, CDC0_INT_IN_EP, CDC0_DATA_IN_EP, CDC0_DATA_OUT_EP, CDCACM_FDCAP_LC_LS)
 		},
-#if USBD_CDC_CHANNELS > 1
-		[1] = {
-			.cdciad = CDCVCOMIAD(IFNUM_CDC1_CONTROL, USBD_SIDX_FUN_VCOM1),
-			.cdcdesc = CDCVCOMDESC(IFNUM_CDC1_CONTROL, CDC1_INT_IN_EP, CDC1_DATA_IN_EP, CDC1_DATA_OUT_EP, CDCACM_FDCAP_LC_LS)
-		},
-#if USBD_CDC_CHANNELS > 2
-		[2] = {
-			.cdciad = CDCVCOMIAD(IFNUM_CDC2_CONTROL, USBD_SIDX_FUN_VCOM2),
-			.cdcdesc = CDCVCOMDESC(IFNUM_CDC2_CONTROL, CDC2_INT_IN_EP, CDC2_DATA_IN_EP, CDC2_DATA_OUT_EP, CDCACM_FDCAP_LC_LS)
-		},
-#endif	// USBD_CDC_CHANNELS > 2
-#endif	// USBD_CDC_CHANNELS > 1
-	},
-#endif	// USBD_CDC_CHANNELS
-#if USBD_PRINTER
-	.prn = {
-		.prnifdesc = IFDESC(IFNUM_PRN, 1, USB_CLASS_PRINTER, PRN_SUBCLASS_PRINTER, PRN_PROTOCOL_UNIDIR, USBD_SIDX_PRINTER),
-//		.prnin = EPDESC(PRN_DATA_IN_EP, USB_EPTYPE_BULK, PRN_DATA_EP_SIZE, 0),
-		.prnout = EPDESC(PRN_DATA_OUT_EP, USB_EPTYPE_BULK, PRN_DATA_EP_SIZE, 0)
-	},
-#endif
-#if USBD_HID
-	.hid = {
-		.hidifdesc = IFDESC(IFNUM_HID, 1, USB_CLASS_HID, HID_SUBCLASS_NONE, HID_PROTOCOL_KB, USBD_SIDX_HID),
-		.hiddesc = {
-			.bLength = sizeof(struct USBdesc_hid_), .bDescriptorType = USB_DESCTYPE_HID, .bcdHID = USB16(0x101),
-			.bCountryCode = 0, .bNumDescriptors = 1, .bHidDescriptorType = USB_DESCTYPE_HIDREPORT,
-			.wDescriptorLength = USB16(sizeof(hid_report_desc))
-		},
-		.hidin = EPDESC(HID_IN_EP, USBD_EP_TYPE_INTR, HID_IN_EP_SIZE, HID_POLLING_INTERVAL),
-	},
-#endif
+	}
 };
-#endif
 
 // endpoint configuration - constant =====================================
 static const struct epcfg_ outcfg[USBD_NUM_EPPAIRS] = {
 	{.ifidx = 0, .handler = 0},
-#if USBD_MSC
-	{.ifidx = IFNUM_MSC, .handler = 0},	// unused
-#endif
 	{.ifidx = IFNUM_CDC0_CONTROL, .handler = 0},	// unused
 	{.ifidx = IFNUM_CDC0_DATA, .handler = DataReceivedHandler},
-#if USBD_CDC_CHANNELS > 1
-#ifndef USE_COMMON_CDC_INT_IN_EP
-	{.ifidx = IFNUM_CDC1_CONTROL, .handler = 0},	// unused
-#endif
-	{.ifidx = IFNUM_CDC1_DATA, .handler = DataReceivedHandler},
-#if USBD_CDC_CHANNELS > 2
-#ifndef USE_COMMON_CDC_INT_IN_EP
-	{.ifidx = IFNUM_CDC2_CONTROL, .handler = 0},	// unused
-#endif
-	{.ifidx = IFNUM_CDC2_DATA, .handler = DataReceivedHandler},
-#endif
-#endif
-#if USBD_PRINTER
-	{.ifidx = IFNUM_PRN, .handler = DataReceivedHandler},
-#endif
-#if USBD_HID
-	{.ifidx = IFNUM_HID, .handler = HIDoutHandler},
-#endif
 };
+
 static const struct epcfg_ incfg[USBD_NUM_EPPAIRS] = {
 	{.ifidx = 0, .handler = 0},
-#if USBD_MSC
-#endif
 #if USBD_CDC_CHANNELS
 	{.ifidx = IFNUM_CDC0_CONTROL, .handler = 0},
 	{.ifidx = IFNUM_CDC0_DATA, .handler = DataSentHandler},
-#if USBD_CDC_CHANNELS > 1
-#ifndef USE_COMMON_CDC_INT_IN_EP
-	{.ifidx = IFNUM_CDC1_CONTROL, .handler = 0},
-#endif
-	{.ifidx = IFNUM_CDC1_DATA, .handler = DataSentHandler},
-#if USBD_CDC_CHANNELS > 2
-#ifndef USE_COMMON_CDC_INT_IN_EP
-	{.ifidx = IFNUM_CDC2_CONTROL, .handler = 0},
-#endif
-	{.ifidx = IFNUM_CDC2_DATA, .handler = DataSentHandler},
-#endif	// USBD_CDC_CHANNELS > 2
-#endif	// USBD_CDC_CHANNELS > 1
 #endif	// USBD_CDC_CHANNELS
-#if USBD_PRINTER
-	{.ifidx = IFNUM_PRN, .handler = DataSentHandler},
-#endif
-#if USBD_HID
-	{.ifidx = IFNUM_HID, },
-#endif
 };
 
 // class and instance index for each interface - required for handling class requests
 const struct ifassoc_ if2fun[USBD_NUM_INTERFACES] = {
-#if USBD_MSC
-	[IFNUM_MSC] = {.classid = USB_CLASS_STORAGE, .funidx = 0},
-#endif
 #if USBD_CDC_CHANNELS
 	[IFNUM_CDC0_CONTROL] = {.classid = USB_CLASS_COMMUNICATIONS, .funidx = 0},
 	[IFNUM_CDC0_DATA] = {.classid = USB_CLASS_COMMUNICATIONS, .funidx = 0},
-#if USBD_CDC_CHANNELS > 1
-	[IFNUM_CDC1_CONTROL] = {.classid = USB_CLASS_COMMUNICATIONS, .funidx = 1},
-	[IFNUM_CDC1_DATA] = {.classid = USB_CLASS_COMMUNICATIONS, .funidx = 1},
-#if USBD_CDC_CHANNELS > 2
-	[IFNUM_CDC2_CONTROL] = {.classid = USB_CLASS_COMMUNICATIONS, .funidx = 2},
-	[IFNUM_CDC2_DATA] = {.classid = USB_CLASS_COMMUNICATIONS, .funidx = 2},
-#endif	// USBD_CDC_CHANNELS > 2
-#endif	// USBD_CDC_CHANNELS > 1
 #endif	// USBD_CDC_CHANNELS
-#if USBD_PRINTER
-	[IFNUM_PRN] = {.classid = USB_CLASS_PRINTER, .funidx = 0},
-#endif
-#if USBD_HID
-	[IFNUM_HID] = {.classid = USB_CLASS_HID, .funidx = 0},
-#endif
 };
 
 // device config options and descriptors - constant ======================
@@ -818,10 +445,6 @@ static const struct usbdcfg_ usbdcfg = {
 	.devdesc = &DevDesc,
 	.cfgdesc = &ConfigDesc.cfgdesc,
 	.strdesc = (const uint8_t **)strdescv,
-#if USBD_HID
-	.hidrepdescsize = sizeof(hid_report_desc),
-	.hidrepdesc = hid_report_desc
-#endif
 };
 
 static struct usbdevdata_ uddata;	// device data and status
@@ -831,20 +454,6 @@ static const struct cdc_services_ cdc_service = {
 	.SetControlLineState = cdc_LineStateHandler,
 	// todo: add get status call when implementing notifications
 };
-
-#if USBD_PRINTER
-static const struct prn_services_ prn_service = {
-	.SoftReset = 0,
-	.UpdateStatus = 0
-};
-#endif
-
-#if USBD_HID
-static const struct hid_services_ hid_service = {
-	.UpdateIn = HIDupdateKB,
-	.UpdateOut = HIDsetLEDs,
-};
-#endif
 
 // main device data structure - const with pointers to const & variable structures
 const struct usbdevice_ usbdev = {
@@ -857,14 +466,6 @@ const struct usbdevice_ usbdev = {
 	.SOF_Handler = usbdev_tick,
 	.cdc_service = &cdc_service,
 	.cdc_data = cdc_data,
-#if USBD_PRINTER
-	.prn_service = &prn_service,
-	.prn_data = &prn_data,
-#endif
-#if USBD_HID
-	.hid_service = &hid_service,
-	.hid_data = &hid_data,
-#endif
 };
 
 // Init routine to start USB device =================================
@@ -875,22 +476,7 @@ void USBapp_Init(void)
 	NVIC_SetPriority(VCOM0_tx_IRQn, USB_IRQ_PRI);
 	NVIC_SetPriority(VCOM0_rx_IRQn, USB_IRQ_PRI + 1);
 	NVIC_EnableIRQ(VCOM0_rx_IRQn);
-#if USBD_CDC_CHANNELS > 1
-	NVIC_SetPriority(VCOM1_tx_IRQn, USB_IRQ_PRI);
-	NVIC_SetPriority(VCOM1_rx_IRQn, USB_IRQ_PRI + 1);
-	NVIC_EnableIRQ(VCOM1_rx_IRQn);
-#if USBD_CDC_CHANNELS > 2
-	NVIC_SetPriority(VCOM2_tx_IRQn, USB_IRQ_PRI);
-	NVIC_SetPriority(VCOM2_rx_IRQn, USB_IRQ_PRI + 1);
-	NVIC_EnableIRQ(VCOM2_rx_IRQn);
-#endif	// USBD_CDC_CHANNELS > 2
-#endif	// USBD_CDC_CHANNELS > 1
 #endif	// USBD_CDC_CHANNELS
-
-#if USBD_PRINTER
-	NVIC_SetPriority(PRN_rx_IRQn, USB_IRQ_PRI + 1);
-	NVIC_EnableIRQ(PRN_rx_IRQn);
-#endif
 
 	NVIC_SetPriority((IRQn_Type)usbdev.cfg->irqn, USB_IRQ_PRI);
 	usbdev.hwif->Init(&usbdev);
@@ -900,6 +486,12 @@ void USBapp_Init(void)
 void USB_IRQHandler(void)
 {
 	usbdev.hwif->IRQHandler(&usbdev);
+}
+
+void USBapp_Poll(void)
+{
+	uint8_t c = vcom0_getc();
+	vcom0_putc(c);
 }
 
 #endif // SIMPLE_CDC

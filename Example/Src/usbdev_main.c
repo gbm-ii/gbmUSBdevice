@@ -33,7 +33,13 @@ static void usbdev_main(void)
 	USBapp_Init();	// Initialize and start USB stack
 
 	for (;;)
+	{
+#ifdef POLLED
+		USBapp_poll();
+#else
 		__WFI();
+#endif
+	}
 }
 
 /**

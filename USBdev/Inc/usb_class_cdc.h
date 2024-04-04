@@ -3,6 +3,7 @@
  *---------------------------------------------------------------------------*/
 // Communication device class specification version 1.10
 #define CDC_V1_10                               0x0110
+#define CDC_V1_20                               0x0120
 
 // Communication interface class code
 // (usbcdc11.pdf, 4.2, Table 15)
@@ -152,6 +153,11 @@ enum uart_parity_ {PARITY_NONE, PARITY_ODD, PARITY_EVEN, PARITY_MARK, PARITY_SPA
 #define	CDC_CTL_RTS	(1u << 1)
 #define	CDC_CTL_RTR	CDC_CTL_RTS
 
+// Abstract Control Management Functional Descriptor capabilities
+#define CDCACM_FDCAP_COMMFEAT	1u	// CommFeature support
+#define CDCACM_FDCAP_LC_LS		2u	// LineCoding, ControlLineState, SerialState support
+#define CDCACM_FDCAP_SENDBREAK	4u	// ...
+#define CDCACM_FDCAP_NETCONN	8u	// Network Connection notification support
 
 // gbmUSBdevice stuff ====================================================
 #include <stdint.h>
@@ -174,7 +180,7 @@ struct cdc_linecoding_ {
 };
 
 // Serial state notification =============================================
-struct cdc_seriastatenotif_ {
+struct cdc_SerialStateNotif_ {
     USB_RequestType bmRequestType;
 	uint8_t bNotification;
 	uint16_t wValue, wIndex, wLength;
@@ -192,7 +198,9 @@ struct cdc_data_ {
 	volatile bool connected;
 	bool signon_rq;
 	uint8_t connstart_timer;
-	uint16_t RxLength;
+	// change Len and Idx members to uint16_t for HS support
+	volatile uint8_t RxLength;
+	volatile uint8_t RxIdx;
 	volatile uint8_t TxLength;
 	uint8_t TxTout;
 	uint8_t RxData[CDC_DATA_EP_SIZE];

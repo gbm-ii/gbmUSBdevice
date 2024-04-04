@@ -52,14 +52,16 @@ struct langid_ {uint8_t bLength, type; uint16_t v;};
 		.mscout = EPDESC(dataoutep, USB_EPTYPE_BULK, MSC_BOT_EP_SIZE, 0) \
 	}
 
-#define CDCVCOMDESC(ctrlif, ctrlinep, datainep, dataoutep) \
+// old order: interface, header, call management, ACM functional, union, notif ep
+// new order: interface, header, ACM functional, union, call management, notif ep (CDC120 5.3, PSTN120 5.4)
+#define CDCVCOMDESC(ctrlif, notifinep, datainep, dataoutep, capabilities) \
 	{ \
 		.cdccomifdesc = IFDESC(ctrlif, 1, CDC_COMMUNICATION_INTERFACE_CLASS, CDC_ABSTRACT_CONTROL_MODEL, 0, 0), \
 		.cdchdrfunc = {sizeof(struct USBdesc_funCDChdr_), CDC_CS_INTERFACE, CDC_HEADER, USB16(CDC_V1_10)}, \
+		.cdcacmdesc = {sizeof(struct USBdesc_CDCacm_), CDC_CS_INTERFACE, CDC_ABSTRACT_CONTROL_MANAGEMENT, capabilities}, \
+		.cdcudesc = {sizeof(struct USBdesc_union_),	CDC_CS_INTERFACE, CDC_UNION, (ctrlif), (ctrlif) + 1}, \
 		.cdccmdesc = {sizeof(struct USBdesc_CDCcm_), CDC_CS_INTERFACE, CDC_CALL_MANAGEMENT, 0x00, (ctrlif) + 1}, \
-		.cdcacmdesc = {sizeof(struct USBdesc_CDCacm_), CDC_CS_INTERFACE, CDC_ABSTRACT_CONTROL_MANAGEMENT, 0x02}, \
-		.cdcudesc = {sizeof(struct USBdesc_union_),	CDC_CS_INTERFACE, CDC_UNION, ctrlif, (ctrlif) + 1}, \
-		.cdcnotif = EPDESC(ctrlinep, USB_EPTYPE_INT, CDC_INT_EP_SIZE, CDC_INT_POLLING_INTERVAL), \
+		.cdcnotif = EPDESC(notifinep, USB_EPTYPE_INT, CDC_INT_EP_SIZE, CDC_INT_POLLING_INTERVAL), \
 		.cdcdataclassifdesc = IFDESC(ctrlif + 1, 2, CDC_DATA_INTERFACE_CLASS, 0, 0, 0), \
 		.cdcin = EPDESC(datainep, USB_EPTYPE_BULK, CDC_DATA_EP_SIZE, 0), \
 		.cdcout = EPDESC(dataoutep, USB_EPTYPE_BULK, CDC_DATA_EP_SIZE, 0) \
