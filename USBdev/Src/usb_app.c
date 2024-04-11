@@ -36,10 +36,15 @@
 static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc;
 
 #define SIGNON_DELAY	50u
+
+#ifndef SIGNON0
 #define SIGNON0	"\r\nVCOM0 ready\r\n"
+#endif
 #define SIGNON1	"\r\nVCOM1 ready\r\n"
 #define SIGNON2	"\r\nVCOM2 ready\r\n"
+#ifndef PROMPT
 #define PROMPT	">"
+#endif
 
 #define TX_TOUT	2u	// Tx timeout when buffer not empty in ms
 
