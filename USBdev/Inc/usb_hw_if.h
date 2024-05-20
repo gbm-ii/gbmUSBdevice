@@ -35,6 +35,7 @@ struct USBhw_services_ {
 	void (*IRQHandler)(const struct usbdevice_ *usbd);
 
 	void (*Init)(const struct usbdevice_ *usbd);
+	void (*DeInit)(const struct usbdevice_ *usbd);
 	uint16_t (*GetInEPSize)(const struct usbdevice_ *usbd, uint8_t epn);
 
 	void (*SetCfg)(const struct usbdevice_ *usbd);

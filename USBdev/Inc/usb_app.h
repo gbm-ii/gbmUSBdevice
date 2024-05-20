@@ -10,6 +10,7 @@
 
 void usbdev_tick(void);
 void USBapp_Init(void);
+void USBapp_DeInit(void);
 void USBapp_Poll(void);
 
 void vcom0_putc(uint8_t c);

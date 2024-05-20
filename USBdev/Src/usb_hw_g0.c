@@ -96,10 +96,14 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
     NVIC_EnableIRQ((IRQn_Type)usbd->cfg->irqn);
 }
 
-//void USBhw_Deinit(const struct usbdevice_ *usbd)
-//{
-//    NVIC_DisableIRQ((IRQn_Type)usbd->cfg->irqn);
-//}
+static void USBhw_DeInit(const struct usbdevice_ *usbd)
+{
+	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
+
+	NVIC_DisableIRQ((IRQn_Type)usbd->cfg->irqn);
+    usb->BCDR &= ~USB_BCDR_DPPU;	// enable DP pull-up
+	usb->CNTR = USB_CNTR_USBRST | USB_CNTR_PDWN;	// clear PDWN (should wait 1 us on H5)
+}
 
 static inline uint16_t GetRxBufSize(uint8_t block)
 {
@@ -466,6 +470,7 @@ const struct USBhw_services_ g0_fs_services = {
 	.IRQHandler = USBhw_IRQHandler,
 
 	.Init = USBhw_Init,
+	.DeInit = USBhw_DeInit,
 	.GetInEPSize = USBhw_GetInEPSize,
 
 	.SetCfg = USBhw_SetCfg,

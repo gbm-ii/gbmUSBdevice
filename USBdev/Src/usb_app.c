@@ -901,6 +901,28 @@ void USBapp_Init(void)
 	usbdev.hwif->Init(&usbdev);
 }
 
+// DeInit routine to stop USB device =================================
+void USBapp_DeInit(void)
+{
+#if USBD_CDC_CHANNELS
+	// Tx interrupts are enabled when the device is connected
+	NVIC_DisableIRQ(VCOM0_rx_IRQn);
+#if USBD_CDC_CHANNELS > 1
+	NVIC_DisableIRQ(VCOM1_rx_IRQn);
+#if USBD_CDC_CHANNELS > 2
+	NVIC_DisableIRQ(VCOM2_rx_IRQn);
+#endif	// USBD_CDC_CHANNELS > 2
+#endif	// USBD_CDC_CHANNELS > 1
+#endif	// USBD_CDC_CHANNELS
+
+#if USBD_PRINTER
+	NVIC_SetPriority(PRN_rx_IRQn, USB_IRQ_PRI + 1);
+	NVIC_DisableIRQ(PRN_rx_IRQn);
+#endif
+
+	usbdev.hwif->Init(&usbdev);
+}
+
 // USB interrupt routine - invokes general USB interrupt handler passing device structure pointer to it
 void USB_IRQHandler(void)
 {
