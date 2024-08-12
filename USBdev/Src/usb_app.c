@@ -913,14 +913,18 @@ void USBapp_DeInit(void)
 	NVIC_DisableIRQ(VCOM2_rx_IRQn);
 #endif	// USBD_CDC_CHANNELS > 2
 #endif	// USBD_CDC_CHANNELS > 1
+	for (uint8_t i = 0; i < USBD_CDC_CHANNELS; i++)
+	{
+		cdc_data[i] = (struct cdc_data_){.LineCoding = {.dwDTERate = 115200, .bDataBits = 8}};
+	}
 #endif	// USBD_CDC_CHANNELS
 
 #if USBD_PRINTER
 	NVIC_SetPriority(PRN_rx_IRQn, USB_IRQ_PRI + 1);
 	NVIC_DisableIRQ(PRN_rx_IRQn);
+	prn_data = (struct prn_data_){0};
 #endif
-
-	usbdev.hwif->Init(&usbdev);
+	usbdev.hwif->DeInit(&usbdev);
 }
 
 // USB interrupt routine - invokes general USB interrupt handler passing device structure pointer to it

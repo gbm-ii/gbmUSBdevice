@@ -264,7 +264,7 @@ void USBhw_ResetCfg(const struct usbdevice_ *usbd)
 // F0/G4: no need to setup USB pins
 
 // initialize USB peripheral
-void USBhw_Init(const struct usbdevice_ *usbd)
+static void USBhw_Init(const struct usbdevice_ *usbd)
 {
 	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
 	
@@ -277,11 +277,14 @@ void USBhw_Init(const struct usbdevice_ *usbd)
     NVIC_EnableIRQ((IRQn_Type)usbd->cfg->irqn);
 }
 
-// same for G0, F1, ...?
-//void USBhw_Deinit(const struct usbdevice_ *usbd)
-//{
-//    NVIC_DisableIRQ((IRQn_Type)usbd->cfg->irqn);
-//}
+static void USBhw_DeInit(const struct usbdevice_ *usbd)
+{
+	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
+
+	NVIC_DisableIRQ((IRQn_Type)usbd->cfg->irqn);
+    usb->BCDR &= ~USB_BCDR_DPPU;	// disable DP pull-up
+	usb->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;	// set PDWN
+}
 
 // get IN endpoint size from USB registers
 static uint16_t USBhw_GetInEPSize(const struct usbdevice_ *usbd, uint8_t epn)
@@ -428,6 +431,7 @@ const struct USBhw_services_ l0_fs_services = {
 	.IRQHandler = USBhw_IRQHandler,
 
 	.Init = USBhw_Init,
+	.DeInit = USBhw_DeInit,
 	.GetInEPSize = USBhw_GetInEPSize,
 
 	.SetCfg = USBhw_SetCfg,

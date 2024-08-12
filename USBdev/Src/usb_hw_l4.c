@@ -110,6 +110,22 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
     NVIC_EnableIRQ((IRQn_Type)usbd->cfg->irqn);
 }
 
+// deinitialize USB peripheral
+static void USBhw_DeInit(const struct usbdevice_ *usbd)
+{
+    NVIC_DisableIRQ((IRQn_Type)usbd->cfg->irqn);
+
+	USB_OTG_TypeDef *usb = (USB_OTG_TypeDef *)usbd->usb;
+	USB_OTG_GlobalTypeDef *usbg = &usb->Global;
+	USB_OTG_DeviceTypeDef *usbdp = &usb->Device;
+
+	usbdp->DCTL = USB_OTG_DCTL_SDIS;	// disconnect
+	usbg->GCCFG &= ~USB_OTG_GCCFG_PWRDWN;	// power down
+
+	usbg->GINTSTS = 0xBFFFFFFFU;
+	usbg->GINTMSK = 0;
+}
+
 // same for G0, F1, ...?
 //void USBhw_Deinit(const struct usbdevice_ *usbd)
 //{
@@ -614,6 +630,7 @@ const struct USBhw_services_ l4_otgfs_services = {
 	.IRQHandler = USBhw_IRQHandler,
 
 	.Init = USBhw_Init,
+	.DeInit = USBhw_DeInit,
 	.GetInEPSize = USBhw_GetInEPSize,
 
 	.SetCfg = USBhw_SetCfg,

@@ -101,8 +101,8 @@ static void USBhw_DeInit(const struct usbdevice_ *usbd)
 	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
 
 	NVIC_DisableIRQ((IRQn_Type)usbd->cfg->irqn);
-    usb->BCDR &= ~USB_BCDR_DPPU;	// enable DP pull-up
-	usb->CNTR = USB_CNTR_USBRST | USB_CNTR_PDWN;	// clear PDWN (should wait 1 us on H5)
+    usb->BCDR &= ~USB_BCDR_DPPU;	// disable DP pull-up
+	usb->CNTR = USB_CNTR_USBRST | USB_CNTR_PDWN;	// set PDWN
 }
 
 static inline uint16_t GetRxBufSize(uint8_t block)

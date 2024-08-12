@@ -14,5 +14,6 @@ void USBapp_DeInit(void);
 void USBapp_Poll(void);
 
 void vcom0_putc(uint8_t c);
+void vcom_putchar(uint8_t ch, char c);
 
 #endif /* INC_USB_APP_H_ */
