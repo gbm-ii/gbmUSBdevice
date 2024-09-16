@@ -145,9 +145,43 @@ const struct vcomcfg_ vcomcfg[USBD_CDC_CHANNELS] = {
 #endif	// USBD_CDC_CHANNELS > 1
 };
 
+//
+void vcom_write(uint8_t ch, const char *buf, uint16_t size)
+{
+	if (ch < USBD_CDC_CHANNELS)
+	{
+		struct cdc_data_ *cdp = &cdc_data[ch];
+
+		while (size)
+		{
+			while (cdp->connected && cdp->TxLength == CDC_DATA_EP_SIZE) ;	// buffer full -> wait
+
+			if (cdp->connected)
+			{
+				__disable_irq();
+				uint16_t bfree = CDC_DATA_EP_SIZE - cdp->TxLength;
+				uint16_t chunksize = size < bfree ? size : bfree;
+				memcpy(&cdp->TxData[cdp->TxLength], buf, chunksize);
+				buf += chunksize;
+				size -= chunksize;
+				cdp->TxLength += chunksize;
+				if (cdp->TxLength == CDC_DATA_EP_SIZE)
+				{
+					cdp->TxTout = 0;
+					NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);
+				}
+				else
+					cdp->TxTout = TX_TOUT;
+				__enable_irq();
+			}
+		}
+	}
+}
+
 // put character into sendbuf, generate send packet request event
 void vcom_putchar(uint8_t ch, char c)
 {
+#if 0
 	if (ch < USBD_CDC_CHANNELS)
 	{
 		struct cdc_data_ *cdp = &cdc_data[ch];
@@ -168,13 +202,15 @@ void vcom_putchar(uint8_t ch, char c)
 			__enable_irq();
 		}
 	}
+#else
+	vcom_write(ch, &c, 1);
+#endif
 }
 
 void vcom_putstring(uint8_t ch, const char *s)
 {
-	if (ch < USBD_CDC_CHANNELS && s)
-		while (*s)
-			vcom_putchar(ch, *s++);
+	if (s)
+		vcom_write(ch, s, strlen(s));
 }
 
 void vcom0_putc(uint8_t c)
@@ -341,17 +377,28 @@ void cdc_LineStateHandler(const struct usbdevice_ *usbd, uint8_t ch)
 	{
 		//NVIC_DisableIRQ(VCOM0_tx_IRQn);
 		// should reset the state
-		cdc_data[ch].connstart_timer = 0;	// possible hazard w USB interrupt
+		cdc_data[ch].connstart_timer = 0;	// possible hazard w/USB interrupt
 		cdc_data[ch].connected = 0;
 	}
 	cdc_data[ch].ControlLineStateChanged = 0;
 }
 
+// to be called by app when prompt should be displayed not as a result of command processing
+void vcom_prompt_request(uint8_t ch)
+{
+	cdc_data[ch].prompt_rq = 1;
+	NVIC_SetPendingIRQ(vcomcfg[ch].rx_irqn);
+}
+
+// signon/prompt display, may be customized
+__attribute__ ((weak)) void vcom_prompt(uint8_t ch, bool signon)
+{
+	vcom_putstring(ch, signon ? vcomcfg[ch].signon : vcomcfg[ch].prompt);
+}
+
 // data reception and state change handler, priority lower than USB hw interrupt
 void VCOM_rx_IRQHandler(uint8_t ch)
 {
-	bool prompt_rq = 0;
-
 	if (cdc_data[ch].LineCodingChanged)
 	{
 		cdc_data[ch].LineCodingChanged = 0;
@@ -365,20 +412,20 @@ void VCOM_rx_IRQHandler(uint8_t ch)
 	{
 		uint8_t *rxptr = cdc_data[ch].RxData; //
 		for (uint8_t i = 0; i < cdc_data[ch].RxLength; i++)
-			prompt_rq |= process_input(ch, *rxptr++);
+			cdc_data[ch].prompt_rq |= process_input(ch, *rxptr++);
 		cdc_data[ch].RxLength = 0;
 		allow_rx(ConfigDesc.cdc[ch].cdcdesc.cdcout.bEndpointAddress);
 	}
 	if (cdc_data[ch].signon_rq)
 	{
 		cdc_data[ch].signon_rq = 0;
-		vcom_putstring(ch, vcomcfg[ch].signon);
-		prompt_rq = 1;
+		vcom_prompt(ch, 1);
+		cdc_data[ch].prompt_rq = 1;
 	}
-	if (prompt_rq)
+	if (cdc_data[ch].prompt_rq)
 	{
-		prompt_rq = 0;
-		vcom_putstring(ch, vcomcfg[ch].prompt);
+		cdc_data[ch].prompt_rq = 0;
+		vcom_prompt(ch, 0);
 	}
 }
 

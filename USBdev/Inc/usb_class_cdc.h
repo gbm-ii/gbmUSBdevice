@@ -135,7 +135,8 @@
 
 // UART state bitmap values (Serial state notification).
 // (usbcdc11.pdf, 6.3.5, Table 69)
-// these should reset after the notification is sent
+#define CDC_SERIAL_STATE_CTS                	(1u << 7)  // not covered by USB PSTN spec, supported by Windows
+// these 5 should reset after the notification is sent
 #define CDC_SERIAL_STATE_OVERRUN                (1u << 6)  // receive data overrun error has occurred
 #define CDC_SERIAL_STATE_PARITY                 (1u << 5)  // parity error has occurred
 #define CDC_SERIAL_STATE_FRAMING                (1u << 4)  // framing error has occurred
@@ -197,6 +198,7 @@ struct cdc_data_ {
 	bool ControlLineStateChanged;
 	volatile bool connected;
 	bool signon_rq;
+	bool prompt_rq;
 	uint8_t connstart_timer;
 	// change Len and Idx members to uint16_t for HS support
 	volatile uint8_t RxLength;

@@ -42,7 +42,7 @@ static inline void ClockSetup(void)
 // USB peripheral enable & pin configuration
 static inline void USBhwSetup(void)
 {
-#ifndef STM32F072xx
+#ifdef SYSCFG_CFGR1_PA11_PA12_RMP
 	RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 	SYSCFG->CFGR1 |= SYSCFG_CFGR1_PA11_PA12_RMP;
 #endif
@@ -58,7 +58,7 @@ static inline void LED_Btn_Setup(void)
 	BF2F(LED_PORT->MODER, LED_BIT) = GPIO_MODER_OUT;
 #endif
 #ifdef BTN_PORT
-	RCC->AHB2ENR1 |= RCC_IOENR_GPIOEN(BTN_PORT);
+	RCC->AHBENR |= RCC_IOENR_GPIOEN(BTN_PORT);
 	BF2F(BTN_PORT->PUPDR, BTN_BIT) = GPIO_PUPDR_PD;
 	BF2F(BTN_PORT->MODER, BTN_BIT) = GPIO_MODER_IN;
 #endif
