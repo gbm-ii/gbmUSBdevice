@@ -8,6 +8,8 @@
 #ifndef INC_USB_CLASS_HID_H_
 #define INC_USB_CLASS_HID_H_
 
+#if USBD_HID
+
 #define HIDRQ_GET_REPORT	1
 #define HIDRQ_GET_IDLE		2
 #define HIDRQ_GET_PROTOCOL	3
@@ -67,4 +69,5 @@ struct hid_data_ {
 	uint8_t OutReport[HID_OUT_REPORT_SIZE];
 };
 
+#endif // USBD_HID
 #endif /* INC_USB_CLASS_HID_H_ */

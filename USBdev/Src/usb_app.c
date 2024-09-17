@@ -276,7 +276,7 @@ static inline void send_serialstate_notif(uint8_t ch)
 
 // overwrite for any real-world use - this is just echo for demo application
 // return 1 if prompt requested
-__attribute__ ((weak)) bool process_input(uint8_t ch, uint8_t c)
+__attribute__ ((weak)) uint8_t vcom_process_input(uint8_t ch, uint8_t c)
 {
 #if USBD_CDC_CHANNELS
 	vcom_putchar(ch, c);	// echo to the same channel
@@ -300,7 +300,7 @@ void PRN_rx_IRQHandler(void)
 	{
 		uint8_t *rxptr = prn_data.RxData; //
 		for (uint8_t i = 0; i < prn_data.RxLength; i++)
-			process_input(0, *rxptr++);	// same handling as vcom0
+			vcom_process_input(0, *rxptr++);	// same handling as vcom0
 		prn_data.RxLength = 0;
 		allow_rx(PRN_DATA_OUT_EP);
 	}
@@ -330,6 +330,11 @@ void usbdev_tick(void)
 			cdcp->signon_rq = 1;
 			NVIC_SetPendingIRQ(vcomcfg[ch].rx_irqn);
 			NVIC_EnableIRQ(vcomcfg[ch].tx_irqn);
+		}
+		if (cdc_data[ch].autonul_timer && --cdc_data[ch].autonul_timer == 0)
+		{
+			cdc_data[ch].autonul = 1;
+			NVIC_SetPendingIRQ(vcomcfg[ch].rx_irqn);
 		}
 		if (cdcp->TxTout && --cdcp->TxTout == 0)
 		{
@@ -411,10 +416,21 @@ void VCOM_rx_IRQHandler(uint8_t ch)
 	if (cdc_data[ch].RxLength)
 	{
 		uint8_t *rxptr = cdc_data[ch].RxData; //
+		uint8_t pival = 0;
 		for (uint8_t i = 0; i < cdc_data[ch].RxLength; i++)
-			cdc_data[ch].prompt_rq |= process_input(ch, *rxptr++);
+		{
+			pival = vcom_process_input(ch, *rxptr++);
+			cdc_data[ch].prompt_rq |= pival & PIRET_PROMPTRQ;
+		}
 		cdc_data[ch].RxLength = 0;
+		cdc_data[ch].autonul = 0;
+		cdc_data[ch].autonul_timer = (pival & PIRET_AUTONUL) ? AUTONUL_TOUT : 0;
 		allow_rx(ConfigDesc.cdc[ch].cdcdesc.cdcout.bEndpointAddress);
+	}
+	else if (cdc_data[ch].autonul)
+	{
+		cdc_data[ch].autonul = 0;
+		cdc_data[ch].prompt_rq |= vcom_process_input(ch, 0) & PIRET_PROMPTRQ;
 	}
 	if (cdc_data[ch].signon_rq)
 	{

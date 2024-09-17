@@ -145,7 +145,7 @@ static inline void send_serialstate_notif(uint8_t ch)
 
 // overwrite for any real-world use - this is just echo for demo application
 // return 1 if prompt requested
-__attribute__ ((weak)) bool process_input(uint8_t ch, uint8_t c)
+__attribute__ ((weak)) bool vcom_process_input(uint8_t ch, uint8_t c)
 {
 #if USBD_CDC_CHANNELS
 	vcom_putchar(ch, c);	// echo to the same channel
@@ -251,7 +251,7 @@ void VCOM_rx_IRQHandler(uint8_t ch)
 	{
 		uint8_t *rxptr = cdc_data[ch].RxData; //
 		for (uint8_t i = 0; i < cdc_data[ch].RxLength; i++)
-			prompt_rq |= process_input(ch, *rxptr++);
+			prompt_rq |= vcom_process_input(ch, *rxptr++);
 		cdc_data[ch].RxLength = 0;
 		allow_rx(ConfigDesc.cdc[ch].cdcdesc.cdcout.bEndpointAddress);
 	}

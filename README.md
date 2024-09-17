@@ -11,21 +11,21 @@ Planned: MSC BOT SCSI.
 
 ## Quick start using STM32CubeIDE
 
-Out-of-the-box demos are currently available for STM32F0x2, G0B1, L4, H503, U535, U575. The demos uses pure event-driven approach with software-generated interrupts.
+Out-of-the-box demos are currently available for STM32F0x2, F401, G0B1, L4, H503, U535, U575. The demos uses pure event-driven approach with software-generated interrupts.
 Example code for other MCUs as well as more conventional, event loop-based version of demo will be added soon.
 By default, the example code creates a composite device made of generic text printer and two VCPs (only one VCP on F4 series due to only 3 application endpoints available in its USB OTG FS peripheral).
 The composite device demo compiles to little over 5 kB with `-Os` option.
-To use single VCOM (non-composite) demo, define the SIMPLE_CDC symbol in C Compiler preprocessor settings and set CDC_CHANNELS to 1.
+To use single VCOM (non-composite) demo, define the SIMPLE_CDC symbol in C Compiler preprocessor settings and set CDC_CHANNELS in 'usb_dev_config.h' to 1.
 
 To compile and run the example using STM32CubeIDE:
 
-- Download or clone the github.com/gbm-ii/gbmUSBdevice and github.com/gbm-ii/STM32_Inc repositories to your computer.
+- Download or clone the https://github.com/gbm-ii/gbmUSBdevice and https://github.com/gbm-ii/STM32_Inc repositories to your computer.
 - Create a *New STM32 project* (STM32Cube type) for your MCU model. Do not change any settings; just generate code for the default configuration.
 - Copy or link the `gbmUSBdevice` folder to include it in your project. Set the folder as source folder
  (right click on the folder name, *Properties - C/C++ Build* - uncheck *Exclude resource from build*).
 - Copy or link the `STM32_Inc` folder to your project.
 - Remove or rename the `main()` function in CubeMX-generated `main.c` file - `main()` from gbmUSBdevice example will be used instead of it.
-- Add the `gbmUSBdevice/Example/Inc/<MCU_series>`, `gbmUSBdevice/USBdev` and `STM32_Inc` folders to the inlcude path; they should appear in the include path in exactly that order.
+- Add the `gbmUSBdevice/Example/Inc/<MCU_series>`, `gbmUSBdevice/USBdev/Inc` and `STM32_Inc` folders to the inlcude path; they should appear in the include path in exactly that order.
 
 To see the demo in action:
 
@@ -33,7 +33,7 @@ To see the demo in action:
 - Open the terminal sessions for the VCPs (TeraTerm seems to be good choice for Windows); once connected, the demo displays prompt with the VCOM logical number in a terminal window.
 - The text typed in a terminal window is echoed. The text printed to the printer is displayed in VCOM0 terminal window.
 
-Composite device configuration may be changed by editing `usb_dev_config.h` file. Newly added HID keyboard demo was tested on U545.
+Composite device configuration may be changed by editing `usb_dev_config.h` file. Newly added HID keyboard demo was tested on U545 and F401.
 
 ## Using gbmUSBdevice with HAL & CubeMX-generated code
 
@@ -57,5 +57,5 @@ If enabled in `usb_dev_config.h`, Generic Text Printer device is created, which 
 ## HID example
 
 The HID example implements a keyboard device using one button/key and one LED. The hardware connection must be visible in the main file.
-The example code for selected STM32 models uses Nucleo board button and LED. Once connected to a PC, the LED serves as ScrollLock indicator
-and pressing a button causes the asterisk character to be input.
+The example code for selected STM32 models uses Nucleo or F4x1 BlackPill board button and LED. Once connected to a PC, the LED serves as ScrollLock indicator
+and pressing a button causes the asterisk character to be input to the host computer.

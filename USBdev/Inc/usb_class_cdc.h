@@ -164,6 +164,7 @@ enum uart_parity_ {PARITY_NONE, PARITY_ODD, PARITY_EVEN, PARITY_MARK, PARITY_SPA
 #include <stdint.h>
 #include <stdbool.h>
 
+#define AUTONUL_TOUT	5u
 //========================================================================
 struct cdc_linecoding_ {
 	uint32_t dwDTERate;	// Data terminal rate, in bits per second*/
@@ -200,6 +201,8 @@ struct cdc_data_ {
 	bool signon_rq;
 	bool prompt_rq;
 	uint8_t connstart_timer;
+	bool autonul;
+	uint8_t autonul_timer;
 	// change Len and Idx members to uint16_t for HS support
 	volatile uint8_t RxLength;
 	volatile uint8_t RxIdx;
