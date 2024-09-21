@@ -152,7 +152,7 @@ void vcom_write(uint8_t ch, const char *buf, uint16_t size)
 	{
 		struct cdc_data_ *cdp = &cdc_data[ch];
 
-		while (size)
+		while (cdp->connected && size)
 		{
 			while (cdp->connected && cdp->TxLength == CDC_DATA_EP_SIZE) ;	// buffer full -> wait
 

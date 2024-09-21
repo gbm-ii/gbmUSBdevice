@@ -15,14 +15,19 @@
  * You should have received a copy of the GNU General Public License 
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#if defined(STM32G0B1xx) || defined(STM32H503xx) || defined(STM32U535xx) || defined(STM32U545xx)
+#if defined(STM32G0B1xx) \
+	|| defined(STM32H503xx) || defined(STM32H533xx) || defined(STM32H563xx) \
+	|| defined(STM32U535xx) || defined(STM32U545xx) \
+	|| defined(STM32U073xx) || defined(STM32U083xx)
 
 #ifdef STM32G0B1xx
 #include "stm32g0xx.h"
-#elif defined(STM32H503xx)
+#elif defined(STM32H503xx) || defined(STM32H533xx) || defined(STM32H563xx)
 #include "stm32h5xx.h"
 #elif defined(STM32U535xx) || defined(STM32U545xx)
 #include "stm32u5xx.h"
+#elif defined(STM32U073xx) || defined(STM32U083xx)
+#include "stm32u0xx.h"
 #else
 #error unsupported MCU type
 #endif
@@ -34,6 +39,7 @@
 
 // In G0/H5/U5 all USB registers incl. PMA must be accessed as 32-bit!
 // PMA size: 2048 B
+// U0: PMA size 1024 B
 typedef volatile uint32_t PMAreg;
 typedef volatile uint32_t USBreg;
 
@@ -65,7 +71,7 @@ typedef struct USBh_ {
 			USBreg ISTR;
 			USBreg FNR;
 			USBreg DADDR;
-			USBreg RES_BTABLE;	// not present in G0/H503 - buffer table offset in USB memory
+			USBreg RES_BTABLE;	// not present in G0/H5/U0 - buffer table offset in USB memory
 			USBreg LPMCSR;	//
 			USBreg BCDR;	//
 		};

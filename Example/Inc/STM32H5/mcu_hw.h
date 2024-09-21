@@ -29,7 +29,7 @@
  */
 
 /*
- * Minimal clock setup routine for STM32H5 (teted on Nucleo-H503)
+ * Minimal clock setup routine for STM32H5 (tested on Nucleo-H503)
  * The routine may be replaced by any user-writen or CubeMX-generated HAL routine providing stable 48 MHz clock to USB peripheral.
  */
 //#define USE_HSE
@@ -86,15 +86,12 @@ static inline void ClockSetup(void)
 static inline void USBhwSetup(void)
 {
 	// USB hardware setup
-	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
+#ifdef PWR_USBSCR_USB33SV
+	PWR->USBSCR = PWR_USBSCR_USB33SV;
+#endif
 	RCC->APB2ENR |= RCC_APB2ENR_USBEN;
 
-	AFRF(GPIOA, 11) = AFN_USB;
-	AFRF(GPIOA, 12) = AFN_USB;
-	//BF2_(GPIOA->OSPEEDR).p11 = GPIO_OSPEEDR_VHI;
-	//BF2_(GPIOA->OSPEEDR).p12 = GPIO_OSPEEDR_VHI;
-	BF2F(GPIOA->MODER, 11) = GPIO_MODER_AF;
-	BF2F(GPIOA->MODER, 12) = GPIO_MODER_AF;
+	// no need to setup GPIOA
 }
 
 // board LED/Button setup needed for HID demo
