@@ -151,27 +151,28 @@ void vcom_write(uint8_t ch, const char *buf, uint16_t size)
 	if (ch < USBD_CDC_CHANNELS)
 	{
 		struct cdc_data_ *cdp = &cdc_data[ch];
+		struct cdc_session_ *cds = &cdp->session;
 
-		while (cdp->connected && size)
+		while (cds->connected && size)
 		{
-			while (cdp->connected && cdp->TxLength == CDC_DATA_EP_SIZE) ;	// buffer full -> wait
+			while (cds->connected && cds->TxLength == CDC_DATA_EP_SIZE) ;	// buffer full -> wait
 
-			if (cdp->connected)
+			if (cds->connected)
 			{
 				__disable_irq();
-				uint16_t bfree = CDC_DATA_EP_SIZE - cdp->TxLength;
+				uint16_t bfree = CDC_DATA_EP_SIZE - cds->TxLength;
 				uint16_t chunksize = size < bfree ? size : bfree;
-				memcpy(&cdp->TxData[cdp->TxLength], buf, chunksize);
+				memcpy(&cdp->TxData[cds->TxLength], buf, chunksize);
 				buf += chunksize;
 				size -= chunksize;
-				cdp->TxLength += chunksize;
-				if (cdp->TxLength == CDC_DATA_EP_SIZE)
+				cds->TxLength += chunksize;
+				if (cds->TxLength == CDC_DATA_EP_SIZE)
 				{
-					cdp->TxTout = 0;
+					cds->TxTout = 0;
 					NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);
 				}
 				else
-					cdp->TxTout = TX_TOUT;
+					cds->TxTout = TX_TOUT;
 				__enable_irq();
 			}
 		}
@@ -308,6 +309,55 @@ void PRN_rx_IRQHandler(void)
 #endif
 
 //========================================================================
+__attribute__ ((weak)) void VCP_ConnStatus(uint8_t ch, bool on)
+{
+	// define to control board's LED for VCP connection status signaling
+}
+
+//========================================================================
+// called on reset, suspend, resume
+static void usbdev_session_init(void)
+{
+#if USBD_CDC_CHANNELS
+	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
+	{
+		struct cdc_data_ *cdcp = &cdc_data[ch];
+		cdcp->session = (struct cdc_session_) {0};
+		VCP_ConnStatus(ch, 0);
+	}
+#endif
+}
+
+static void usbdev_reset(void)
+{
+#if USBD_CDC_CHANNELS
+	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
+	{
+		struct cdc_data_ *cdcp = &cdc_data[ch];
+		cdcp->ControlLineState = 0;
+		cdcp->ControlLineStateChanged = 0;
+		cdcp->LineCodingChanged = 0;
+	}
+#endif
+	usbdev_session_init();
+}
+
+static void usbdev_resume(void)
+{
+	usbdev_session_init();
+#if USBD_CDC_CHANNELS
+	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
+	{
+		struct cdc_data_ *cdcp = &cdc_data[ch];
+		if ((cdcp->ControlLineState & (CDC_CTL_DTR | CDC_CTL_RTS)) == (CDC_CTL_DTR | CDC_CTL_RTS))
+		{
+			cdcp->session.connstart_timer = SIGNON_DELAY;	// display prompt after 50 ms
+		}
+	}
+#endif
+}
+
+//========================================================================
 uint32_t usbdev_msec;
 
 // called from USB interrupt at 1 kHz (SOF)
@@ -315,28 +365,33 @@ void usbdev_tick(void)
 {
 	++usbdev_msec;
 #if USBD_CDC_CHANNELS
-//	static uint16_t dt;
-//	if ((++dt & 0x3ff) == 0)
-//	{
-//		cdc_data[0].SerialState = dt >> 10 & 3;
-//		//send_serialstate_notif(0);
-//	}
+#ifdef SSNOTIF_TEST
+	static uint16_t dt;
+	if ((++dt & 0x3ff) == 0)
+	{
+		cdc_data[0].SerialState = dt >> 10 & 3;
+		//send_serialstate_notif(0);
+	}
+#endif
 	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
 	{
 		struct cdc_data_ *cdcp = &cdc_data[ch];
-		if (cdcp->connstart_timer && --cdcp->connstart_timer == 0)
+		struct cdc_session_ *cds = &cdcp->session;
+
+		if (cds->connstart_timer && --cds->connstart_timer == 0)
 		{
-			cdcp->connected = 1;
-			cdcp->signon_rq = 1;
+			cds->connected = 1;
+			VCP_ConnStatus(ch, 1);
+			cds->signon_rq = 1;
 			NVIC_SetPendingIRQ(vcomcfg[ch].rx_irqn);
 			NVIC_EnableIRQ(vcomcfg[ch].tx_irqn);
 		}
-		if (cdc_data[ch].autonul_timer && --cdc_data[ch].autonul_timer == 0)
+		if (cds->autonul_timer && --cds->autonul_timer == 0)
 		{
-			cdc_data[ch].autonul = 1;
+			cds->autonul = 1;
 			NVIC_SetPendingIRQ(vcomcfg[ch].rx_irqn);
 		}
-		if (cdcp->TxTout && --cdcp->TxTout == 0)
+		if (cds->TxTout && --cds->TxTout == 0)
 		{
 			NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);
 		}
@@ -376,14 +431,15 @@ void cdc_LineStateHandler(const struct usbdevice_ *usbd, uint8_t ch)
 	{
 		// Note: Br@y Terminal sends DTR & RTS only when DTR goes active while RTS _is_ active
 		cdc_data[ch].SerialState |= CDC_SERIAL_STATE_TX_CARRIER | CDC_SERIAL_STATE_RX_CARRIER;
-		cdc_data[ch].connstart_timer = SIGNON_DELAY;	// display prompt after 50 ms
+		cdc_data[ch].session.connstart_timer = SIGNON_DELAY;	// display prompt after 50 ms
 	}
 	else
 	{
 		//NVIC_DisableIRQ(VCOM0_tx_IRQn);
 		// should reset the state
-		cdc_data[ch].connstart_timer = 0;	// possible hazard w/USB interrupt
-		cdc_data[ch].connected = 0;
+		cdc_data[ch].session.connstart_timer = 0;	// possible hazard w/USB interrupt
+		cdc_data[ch].session.connected = 0;
+		VCP_ConnStatus(ch, 0);
 	}
 	cdc_data[ch].ControlLineStateChanged = 0;
 }
@@ -391,7 +447,7 @@ void cdc_LineStateHandler(const struct usbdevice_ *usbd, uint8_t ch)
 // to be called by app when prompt should be displayed not as a result of command processing
 void vcom_prompt_request(uint8_t ch)
 {
-	cdc_data[ch].prompt_rq = 1;
+	cdc_data[ch].session.prompt_rq = 1;
 	NVIC_SetPendingIRQ(vcomcfg[ch].rx_irqn);
 }
 
@@ -413,34 +469,36 @@ void VCOM_rx_IRQHandler(uint8_t ch)
 	{
 		// handle if not handled by LineStateHandler
 	}
-	if (cdc_data[ch].RxLength)
+	if (cdc_data[ch].session.RxLength)
 	{
+		cdc_data[ch].session.connected = 1;
+		VCP_ConnStatus(ch, 1);
 		uint8_t *rxptr = cdc_data[ch].RxData; //
 		uint8_t pival = 0;
-		for (uint8_t i = 0; i < cdc_data[ch].RxLength; i++)
+		for (uint8_t i = 0; i < cdc_data[ch].session.RxLength; i++)
 		{
 			pival = vcom_process_input(ch, *rxptr++);
-			cdc_data[ch].prompt_rq |= pival & PIRET_PROMPTRQ;
+			cdc_data[ch].session.prompt_rq |= pival & PIRET_PROMPTRQ;
 		}
-		cdc_data[ch].RxLength = 0;
-		cdc_data[ch].autonul = 0;
-		cdc_data[ch].autonul_timer = (pival & PIRET_AUTONUL) ? AUTONUL_TOUT : 0;
+		cdc_data[ch].session.RxLength = 0;
+		cdc_data[ch].session.autonul = 0;
+		cdc_data[ch].session.autonul_timer = (pival & PIRET_AUTONUL) ? AUTONUL_TOUT : 0;
 		allow_rx(ConfigDesc.cdc[ch].cdcdesc.cdcout.bEndpointAddress);
 	}
-	else if (cdc_data[ch].autonul)
+	else if (cdc_data[ch].session.autonul)
 	{
-		cdc_data[ch].autonul = 0;
-		cdc_data[ch].prompt_rq |= vcom_process_input(ch, 0) & PIRET_PROMPTRQ;
+		cdc_data[ch].session.autonul = 0;
+		cdc_data[ch].session.prompt_rq |= vcom_process_input(ch, 0) & PIRET_PROMPTRQ;
 	}
-	if (cdc_data[ch].signon_rq)
+	if (cdc_data[ch].session.signon_rq)
 	{
-		cdc_data[ch].signon_rq = 0;
+		cdc_data[ch].session.signon_rq = 0;
 		vcom_prompt(ch, 1);
-		cdc_data[ch].prompt_rq = 1;
+		cdc_data[ch].session.prompt_rq = 1;
 	}
-	if (cdc_data[ch].prompt_rq)
+	if (cdc_data[ch].session.prompt_rq)
 	{
-		cdc_data[ch].prompt_rq = 0;
+		cdc_data[ch].session.prompt_rq = 0;
 		vcom_prompt(ch, 0);
 	}
 }
@@ -458,11 +516,11 @@ void VCOM_tx_IRQHandler(uint8_t ch)
 	NVIC_DisableIRQ(vcomcfg[ch].tx_irqn);
 //	if (cdp->TxLength)
 	{
-		if (cdp->TxLength == CDC_DATA_EP_SIZE)
+		if (cdp->session.TxLength == CDC_DATA_EP_SIZE)
 			NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);	// another packet must follow, data or ZLP
 		USBdev_SendData(&usbdev, ConfigDesc.cdc[ch].cdcdesc.cdcin.bEndpointAddress,
-			cdp->TxData, cdp->TxLength, 0);
-		cdp->TxLength = 0;	// clear counter
+			cdp->TxData, cdp->session.TxLength, 0);
+		cdp->session.TxLength = 0;	// clear counter
 	}
 }
 
@@ -568,17 +626,17 @@ void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
 			{
 #if USBD_CDC_CHANNELS
 			case CDC0_DATA_OUT_EP:
-				cdc_data[0].RxLength = length;
+				cdc_data[0].session.RxLength = length;
 				NVIC_SetPendingIRQ(VCOM0_rx_IRQn);
 				break;
 #if USBD_CDC_CHANNELS > 1
 			case CDC1_DATA_OUT_EP:
-				cdc_data[1].RxLength = length;
+				cdc_data[1].session.RxLength = length;
 				NVIC_SetPendingIRQ(VCOM1_rx_IRQn);
 				break;
 #if USBD_CDC_CHANNELS > 2
 			case CDC2_DATA_OUT_EP:
-				cdc_data[2].RxLength = length;
+				cdc_data[2].session.RxLength = length;
 				NVIC_SetPendingIRQ(VCOM2_rx_IRQn);
 				break;
 #endif	// USBD_CDC_CHANNELS > 2
@@ -922,7 +980,11 @@ const struct usbdevice_ usbdev = {
 	.devdata = &uddata,
 	.outep = out_epdata,
 	.inep = in_epdata,
+	.Reset_Handler = usbdev_reset,
+	.Suspend_Handler = usbdev_session_init,
+	.Resume_Handler = usbdev_resume,
 	.SOF_Handler = usbdev_tick,
+//	.ESOF_Handler = usbdev_notick,
 	.cdc_service = &cdc_service,
 	.cdc_data = cdc_data,
 #if USBD_PRINTER

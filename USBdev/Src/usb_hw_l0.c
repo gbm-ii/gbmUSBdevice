@@ -366,6 +366,8 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 	{
         usb->ISTR = ~USB_ISTR_RESET;
         USBhw_Reset(usbd);
+        if (usbd->Reset_Handler)
+        	usbd->Reset_Handler();
         return;
     }
     if (istr & USB_ISTR_CTR)	// EP traffic interrupt
@@ -409,13 +411,17 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         usb->ISTR = ~USB_ISTR_SUSP;
         usb->CNTR |= USB_CNTR_LPMODE;
         // callback...
-        return;
+        if (usbd->Suspend_Handler)
+        	usbd->Suspend_Handler();
+       return;
     }
     if (istr & USB_ISTR_WKUP)
 	{
         usb->CNTR &= ~USB_CNTR_LPMODE;
         usb->CNTR &= ~USB_CNTR_FSUSP;
         // callback...
+        if (usbd->Resume_Handler)
+        	usbd->Resume_Handler();
         usb->ISTR = ~USB_ISTR_WKUP;
     }
     if (istr & USB_ISTR_SOF)
@@ -423,6 +429,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         usb->ISTR = ~USB_ISTR_SOF;
         if (usbd->SOF_Handler)
         	usbd->SOF_Handler();
+        //usb->CNTR |= USB_CNTR_ESOFM;
     }
 }
 

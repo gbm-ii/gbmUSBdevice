@@ -190,13 +190,9 @@ struct cdc_SerialStateNotif_ {
 };
 
 // application-specific CDC channel data
-struct cdc_data_ {
-	struct cdc_linecoding_ LineCoding;
-	uint16_t ControlLineState;	// bit 0 - DTE ready, bit 1 - CD/RTS/RTR
-	uint16_t SerialState;		// current SerialState
-	uint16_t SerialStateSent;	// last SerialState successfully sent
-	bool LineCodingChanged;
-	bool ControlLineStateChanged;
+
+// data that should be reset whenever the USB connection is established
+struct cdc_session_ {
 	volatile bool connected;
 	bool signon_rq;
 	bool prompt_rq;
@@ -208,8 +204,19 @@ struct cdc_data_ {
 	volatile uint8_t RxIdx;
 	volatile uint8_t TxLength;
 	uint8_t TxTout;
+};
+
+// persisent data
+struct cdc_data_ {
+	struct cdc_linecoding_ LineCoding;
+	uint16_t ControlLineState;	// bit 0 - DTE ready, bit 1 - CD/RTS/RTR
+	uint16_t SerialState;		// current SerialState
+	uint16_t SerialStateSent;	// last SerialState successfully sent
+	bool LineCodingChanged;
+	bool ControlLineStateChanged;
 	uint8_t RxData[CDC_DATA_EP_SIZE];
 	uint8_t TxData[CDC_DATA_EP_SIZE];
+	struct cdc_session_ session;
 };
 
 struct cdc_services_ {
