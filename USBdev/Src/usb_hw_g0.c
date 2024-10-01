@@ -37,6 +37,20 @@
 #include "usb_dev.h"
 #include "usb_hw_if.h"
 
+#ifdef UARTMON
+#ifdef STM32H503xx
+#define MONUART	USART3
+#endif	// H503
+
+void EVTMON(uint8_t a)
+{
+	while (~MONUART->ISR & USART_ISR_TXE) ;
+	MONUART->TDR = a;
+}
+#else
+#define EVTMON(a)
+#endif
+
 // In G0/H5/U5 all USB registers incl. PMA must be accessed as 32-bit!
 // PMA size: 2048 B
 // U0: PMA size 1024 B
@@ -165,6 +179,7 @@ static void SetEPRState(const struct usbdevice_ *usbd, uint8_t epaddr, uint32_t 
 {
 	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
     volatile uint32_t *epr = &usb->EPR[epaddr & EPNUMMSK];
+    // keep config bits, write ones to toggle bits in statemask, don't reset w0c flags
     *epr = ((*epr & (USB_EPR_CFG | statemask)) ^ newstate) | USB_EPR_FLAGS;
 }
 
@@ -281,6 +296,7 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 			| USB_EPR_STATTX(USB_EPSTATE_NAK);
 		SetEPRState(usbd, i, USB_EP_RX_STRX | USB_EP_TX_STTX | USB_EP_DTOG_TX | USB_EP_DTOG_RX, epstate);
 	}
+    EVTMON('C');
 }
 
 // disable app endpoints on set configuration 0 request
@@ -351,6 +367,7 @@ static void USBhw_StartTx(const struct usbdevice_ *usbd, uint8_t epn)
     {
     	// last data packet sent over control ep - prepare for status out
     	usbd->devdata->ep0state = USBD_EP0_STATUS_OUT;
+    	// TODO: set EPKIND bit as STATUS_OUT? (need to reset it later, so usb_dev should control it)
         USBhw_SetEPState(usbd, 0, USB_EPSTATE_VALID);
     }
     USBhw_SetEPState(usbd, epn | 0x80, USB_EPSTATE_VALID);
@@ -396,10 +413,31 @@ void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 	
 	uint32_t istr = usb->ISTR & (usb->CNTR | 0xff);
 	
+    if (istr & USB_ISTR_WKUP)
+	{
+        //usb->CNTR &= ~USB_CNTR_SUSPRDY;	// cleared by hw
+        if (~usb->FNR & USB_FNR_RXDP)
+        {
+        	// real resume event
+            usb->CNTR &= ~USB_CNTR_SUSPEN;
+            if (usb->FNR & USB_FNR_RXDM)
+            {
+            	// resume (not reset)
+                // callback...
+                if (usbd->Resume_Handler)
+                	usbd->Resume_Handler();
+                EVTMON('W');
+            }
+        }
+        usb->ISTR = ~USB_ISTR_WKUP;
+    }
     if (istr & USB_ISTR_RESET) // Reset
 	{
         usb->ISTR = ~USB_ISTR_RESET;
         USBhw_Reset(usbd);
+        if (usbd->Reset_Handler)
+        	usbd->Reset_Handler();
+        EVTMON('R');
         return;
     }
     if (istr & USB_ISTR_CTR)	// EP traffic interrupt
@@ -425,7 +463,10 @@ void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 			else	// In transfer completed
 			{
 				if (epn == 0 && usbd->devdata->setaddress)
+				{
 					usb->DADDR = usbd->devdata->setaddress | USB_DADDR_EF;
+				    EVTMON('A');
+				}
 				USBdev_InEPHandler(usbd, epn);
 			}
 		}
@@ -447,22 +488,11 @@ void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         usb->CNTR |= USB_CNTR_SUSPRDY | USB_CNTR_WKUPM;
 
         // suspend callback should go here
-#if 0
-        if (usb->DADDR)
-		{
-            usb->DADDR = 0;
-            usb->CNTR &= ~USB_CNTR_SUSPM;
-            usb->CNTR |= USB_CNTR_SUSPEN;
-        }
-#endif
-        return;
-    }
-    if (istr & USB_ISTR_WKUP)
-	{
-        usb->CNTR &= ~USB_CNTR_SUSPRDY;
-        usb->CNTR &= ~USB_CNTR_SUSPEN;
         // callback...
-        usb->ISTR = ~USB_ISTR_WKUP;
+        if (usbd->Suspend_Handler)
+        	usbd->Suspend_Handler();
+        EVTMON('S');
+        return;
     }
     if (istr & USB_ISTR_SOF)
 	{

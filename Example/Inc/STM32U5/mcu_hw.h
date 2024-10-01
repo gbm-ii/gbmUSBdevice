@@ -49,7 +49,8 @@ static inline void ClockSetup(void)
 	PWR->CR3 |= PWR_CR3_REGSEL;	// turn on SMPS
 	while (~PWR->SVMSR & PWR_SVMSR_REGS) ;	// wait for SMPS ready
 
-	// osc and PLL setup
+#if 1
+	// osc and PLL setup for MCUS up to U58x
 	RCC->CR |= RCC_CR_HSI48ON;
 
 	RCC->APB1ENR1 |= RCC_APB1ENR1_CRSEN;
@@ -63,6 +64,20 @@ static inline void ClockSetup(void)
 	RCC->CR |= RCC_CR_PLL1ON;
 
 	CRS->CR |= CRS_CR_AUTOTRIMEN | CRS_CR_CEN;	// HIS48 sync to USB SOF
+#else
+	// U59x, 5Ax using 16 MHz HSE (Nucleo-U5A5)
+	RCC->CR |= RCC_CR_HSEON;
+	while (~RCC->CR & RCC_CR_HSERDY) ;
+
+	// HCLK from PLL1R, PLL input clock 4..16 MHz, PLL freq 128..544 MHz
+	// M = 1, N = 80, P = 2
+	RCC->PLL1DIVR = (2u - 1) << RCC_PLL1DIVR_PLL1P_Pos | (2u - 1) << RCC_PLL1DIVR_PLL1Q_Pos | (2u - 1) << RCC_PLL1DIVR_PLL1R_Pos
+		| (HCLK_FREQ / 2000000u - 1) << RCC_PLL1DIVR_PLL1N_Pos;
+	RCC->PLL1CFGR = RCC_PLL1CFGR_PLL1SRC_Msk | (4u - 1) << RCC_PLL1CFGR_PLL1M_Pos | RCC_PLL1CFGR_PLL1REN;	// MSIS, no div
+	RCC->CR |= RCC_CR_PLL1ON;
+
+	//RCC->CCIPR2 = 0u << RCC_CCIPR2_OTGHSSEL_Pos;	// HSI as USB HS clock - U59x and above
+#endif
 
 	// wait for correct core voltage
 	while (~PWR->VOSR & (PWR_VOSR_VOSRDY | PWR_VOSR_BOOSTRDY)) ;
@@ -76,7 +91,7 @@ static inline void ClockSetup(void)
 	RCC->CFGR1 = RCC_CFGR1_SW_PLL1;
 	// select USB clock
 	//RCC->CCIPR1 = 0 << RCC_CCIPR1_ICLKSEL_Pos;	// HSI48 as USB clock - default after reset
-	//RCC->CCIPR3 = 1 << RCC_CCIPR2_OTGHSSEL_Pos;	// PLL1P as USB HS clock (60 MHz) - U59x and above
+	//RCC->CCIPR2 = 1u << RCC_CCIPR2_OTGHSSEL_Pos;	// PLL1P as USB HS clock - U59x and above
 }
 
 /*
@@ -89,8 +104,18 @@ static inline void USBhwSetup(void)
 	PWR->SVMCR |= PWR_SVMCR_IO2SV | PWR_SVMCR_USV;	// USB and IO2 power on
 #ifdef RCC_APB2ENR_USBEN	// U535/U545 USB device
 	RCC->APB2ENR |= RCC_APB2ENR_USBEN;
-#else	// U575/585 USB OTG
+#else
+
+#if defined(RCC_AHB2ENR1_OTGHSPHYEN)	// U59x
+	RCC->APB3ENR |= RCC_APB3ENR_SYSCFGEN;
+	RCC->AHB2ENR1 |= RCC_AHB2ENR1_GPIOAEN | RCC_AHB2ENR1_OTGEN | RCC_AHB2ENR1_OTGHSPHYEN;
+	SYSCFG->OTGHSPHYCR = 3u << SYSCFG_OTGHSPHYCR_CLKSEL_Pos | SYSCFG_OTGHSPHYCR_PDCTRL;
+	SYSCFG->OTGHSPHYTUNER2 = (SYSCFG->OTGHSPHYTUNER2 & ~(SYSCFG_OTGHSPHYTUNER2_SQRXxxx | SYSCFG_OTGHSPHYTUNER2_COMPxxx))
+			| 2u << SYSCFG_OTGHSPHYTUNER2_COMPxx_Pos;
+	SYSCFG->OTGHSPHYCR = 3u << SYSCFG_OTGHSPHYCR_CLKSEL_Pos | SYSCFG_OTGHSPHYCR_PDCTRL | SYSCFG_OTGHSPHYCR_EN;
+#else // U575/585 USB OTG
 	RCC->AHB2ENR1 |= RCC_AHB2ENR1_GPIOAEN | RCC_AHB2ENR1_OTGEN;
+#endif
 
 	AFRF(GPIOA, 11) = AFN_USB;
 	AFRF(GPIOA, 12) = AFN_USB;

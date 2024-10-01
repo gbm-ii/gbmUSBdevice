@@ -362,6 +362,23 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 	
 	uint32_t istr = usb->ISTR & (usb->CNTR | 0xff);
 	
+    if (istr & USB_ISTR_WKUP)
+	{
+        if (~usb->FNR & USB_FNR_RXDP)
+        {
+        	// real resume event
+            usb->CNTR &= ~USB_CNTR_LPMODE;
+            usb->CNTR &= ~USB_CNTR_FSUSP;
+            if (usb->FNR & USB_FNR_RXDM)
+            {
+            	// resume (not reset)
+                // callback...
+                if (usbd->Resume_Handler)
+                	usbd->Resume_Handler();
+            }
+        }
+        usb->ISTR = ~USB_ISTR_WKUP;
+    }
     if (istr & USB_ISTR_RESET) // Reset
 	{
         usb->ISTR = ~USB_ISTR_RESET;
@@ -414,15 +431,6 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         if (usbd->Suspend_Handler)
         	usbd->Suspend_Handler();
        return;
-    }
-    if (istr & USB_ISTR_WKUP)
-	{
-        usb->CNTR &= ~USB_CNTR_LPMODE;
-        usb->CNTR &= ~USB_CNTR_FSUSP;
-        // callback...
-        if (usbd->Resume_Handler)
-        	usbd->Resume_Handler();
-        usb->ISTR = ~USB_ISTR_WKUP;
     }
     if (istr & USB_ISTR_SOF)
 	{

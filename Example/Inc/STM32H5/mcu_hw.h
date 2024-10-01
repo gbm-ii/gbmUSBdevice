@@ -106,6 +106,20 @@ static inline void LED_Btn_Setup(void)
 	BF2F(BTN_PORT->PUPDR, BTN_BIT) = GPIO_PUPDR_PD;
 	BF2F(BTN_PORT->MODER, BTN_BIT) = GPIO_MODER_IN;
 #endif
+#ifdef UARTMON
+#ifdef STM32H503xx
+	// Nucleo-H503: USART3 on PA3, 4
+#define BRRVAL(c,b)	( ((c) + (b) / 2) / (b))
+	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
+	RCC->APB1LENR |= RCC_APB1LENR_USART3EN;
+	USART3->BRR = BRRVAL(HCLK_FREQ, 115200);
+	USART3->CR1 = USART_CR1_TE | USART_CR1_UE;
+	BF4F(GPIOA->AFR[0], 3) = AFN_USART23x;
+	BF4F(GPIOA->AFR[0], 4) = AFN_USART23x;
+	BF2F(GPIOA->MODER, 3) = GPIO_MODER_AF;
+	BF2F(GPIOA->MODER, 4) = GPIO_MODER_AF;
+#endif
+#endif
 }
 
 static inline void hwLED_Set(bool on)

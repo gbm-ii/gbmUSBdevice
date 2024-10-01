@@ -19,10 +19,10 @@
 // verified on F401, L476, L496, L4R5, U575
 #if defined(STM32F401xC) \
 	|| defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx) \
-	|| defined(STM32U575xx) || defined(STM32U585xx)
+	|| defined(STM32U575xx) || defined(STM32U585xx) || defined(STM32U5A5xx)
 
 #if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx) \
-	|| defined(STM32U575xx) || defined(STM32U585xx)
+	|| defined(STM32U575xx) || defined(STM32U585xx) || defined(STM32U5A5xx)
 #define NEW_OTG
 #endif
 
@@ -82,11 +82,18 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
 //	usbg->GCCFG |= USB_OTG_GCCFG_PWRDWN;	// power up phy
 	// L4x6 RefMan 47.16.1
 //	usbg->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT_Msk | 6 << USB_OTG_GUSBCFG_TRDT_Pos;
+#ifdef USB_OTG_GUSBCFG_PHYLPCS
+	// U5A5 HS
+	usbg->GUSBCFG = USB_OTG_GUSBCFG_PHYLPCS | USB_OTG_GUSBCFG_FDMOD | 6 << USB_OTG_GUSBCFG_TRDT_Pos;	// force device mode, set TRDT for > 32 MHz
+#else
 	usbg->GUSBCFG = USB_OTG_GUSBCFG_PHYSEL | USB_OTG_GUSBCFG_FDMOD | 6 << USB_OTG_GUSBCFG_TRDT_Pos;	// force device mode, set TRDT for > 32 MHz
+#endif
 	// in ST stack, TRDT is 5
 
 	while (usbg->GINTSTS & USB_OTG_GINTSTS_CMOD); 	// while in host mode
+#ifdef USB_OTG_GCCFG_PWRDWN
 	usbg->GCCFG |= USB_OTG_GCCFG_PWRDWN;	// power up phy was here
+#endif
 
 #ifdef NEW_OTG
     usbg->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN | USB_OTG_GOTGCTL_BVALOVAL;
@@ -100,7 +107,12 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
 	usbg->GINTSTS = 0xBFFFFFFFU;
 	// RM 47.16.3
 	USB_OTG_DeviceTypeDef *usbdp = &usb->Device;
-	usbdp->DCFG |= 3 << USB_OTG_DCFG_DSPD_Pos;	// Full speed (PERSCHIVL?)
+#ifdef USB_OTG_GUSBCFG_PHYLPCS
+	// U5A5
+	usbdp->DCFG |= 1u << USB_OTG_DCFG_DSPD_Pos;	// Full speed (PERSCHIVL?)
+#else
+	usbdp->DCFG |= 3u << USB_OTG_DCFG_DSPD_Pos;	// Full speed (PERSCHIVL?)
+#endif
 
 	usbg->GINTMSK = USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM
 		| USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM | USB_OTG_GINTMSK_SOFM;
@@ -120,8 +132,9 @@ static void USBhw_DeInit(const struct usbdevice_ *usbd)
 	USB_OTG_DeviceTypeDef *usbdp = &usb->Device;
 
 	usbdp->DCTL = USB_OTG_DCTL_SDIS;	// disconnect
+#ifdef USB_OTG_GCCFG_PWRDWN
 	usbg->GCCFG &= ~USB_OTG_GCCFG_PWRDWN;	// power down
-
+#endif
 	usbg->GINTSTS = 0xBFFFFFFFU;
 	usbg->GINTMSK = 0;
 }
@@ -484,6 +497,8 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
     if (gintsts & USB_OTG_GINTSTS_USBRST) // Reset
 	{
         USBhw_Reset(usbd);
+        if (usbd->Reset_Handler)
+        	usbd->Reset_Handler();
     	usbg->GINTSTS = USB_OTG_GINTSTS_USBRST;
     }
     if (gintsts & USB_OTG_GINTSTS_ENUMDNE) // Reset
@@ -497,9 +512,17 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         	usbd->SOF_Handler();
     	usbg->GINTSTS = USB_OTG_GINTSTS_SOF;
     }
-    if (gintsts & (USB_OTG_GINTSTS_WKUINT | USB_OTG_GINTSTS_USBSUSP))
+    if (gintsts & USB_OTG_GINTSTS_USBSUSP)
     {
-    	usbg->GINTSTS = USB_OTG_GINTSTS_WKUINT | USB_OTG_GINTSTS_USBSUSP;
+        if (usbd->Suspend_Handler)
+        	usbd->Suspend_Handler();
+    	usbg->GINTSTS = USB_OTG_GINTSTS_USBSUSP;
+    }
+    if (gintsts & USB_OTG_GINTSTS_WKUINT)
+    {
+    	usbg->GINTSTS = USB_OTG_GINTSTS_WKUINT;
+        if (usbd->Resume_Handler)
+        	usbd->Resume_Handler();
     }
     if (gintsts & USB_OTG_GINTSTS_RXFLVL)
     {

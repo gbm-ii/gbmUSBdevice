@@ -25,7 +25,7 @@
 #include "usb_dev.h"
 #include "usb_hw_if.h"
 
-// PMA size: F103: 512 B, F070/L073: 1024 B
+// PMA size: F103: 512 B
 // L0: 16- or 32-bit reg access, 16- or 8-bit PMA access, requires special init handling
 typedef volatile uint32_t PMAreg;
 
