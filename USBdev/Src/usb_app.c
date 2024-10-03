@@ -32,6 +32,9 @@
 
 #include "usbdev_binding.h"
 
+//uint32_t usbstat;	// temporary diags
+#define EVTREC(a)	usbstat = usbstat << 4 | a
+
 // forward def
 static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc;
 
@@ -318,6 +321,7 @@ __attribute__ ((weak)) void VCP_ConnStatus(uint8_t ch, bool on)
 // called on reset, suspend, resume
 static void usbdev_session_init(void)
 {
+	memset(in_epdata, 0, sizeof(in_epdata));	// should rather be done in other module
 #if USBD_CDC_CHANNELS
 	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
 	{
@@ -330,6 +334,7 @@ static void usbdev_session_init(void)
 
 static void usbdev_reset(void)
 {
+	usbdev_session_init();
 #if USBD_CDC_CHANNELS
 	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
 	{
@@ -339,8 +344,12 @@ static void usbdev_reset(void)
 		cdcp->LineCodingChanged = 0;
 	}
 #endif
-	usbdev_session_init();
 }
+
+/* sequence recorded during Win hibernation and wakeup with TeraTerm active:
+ * resume with old linestate, reset, resume, reset, reset
+ *  -> no linestate update
+ */
 
 static void usbdev_resume(void)
 {
