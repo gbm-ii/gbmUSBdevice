@@ -18,7 +18,7 @@
 #if defined(STM32G0B1xx) \
 	|| defined(STM32H503xx) || defined(STM32H533xx) || defined(STM32H563xx) \
 	|| defined(STM32U535xx) || defined(STM32U545xx) \
-	|| defined(STM32U073xx) || defined(STM32U083xx) || defined(STM32C071xx)
+	|| defined(STM32U073xx) || defined(STM32U083xx)
 
 #ifdef STM32G0B1xx
 #include "stm32g0xx.h"
@@ -28,8 +28,6 @@
 #include "stm32u5xx.h"
 #elif defined(STM32U073xx) || defined(STM32U083xx)
 #include "stm32u0xx.h"
-#elif defined(STM32C071xx)
-#include "stm32c0xx.h"
 #else
 #error unsupported MCU type
 #endif
