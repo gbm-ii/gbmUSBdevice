@@ -3,15 +3,15 @@
 
 A compact, simple, HAL-free USB device stack for easy creation of composite devices with STM32 MCUs.
 
-Supported MCUs: STM32: F0x2, L0, L4, F4 (OTG FS only), G0B1, H5x3, L5, U0x3, U535..585.
-Planned support: STM32C071, STM32F103, STM32U59x and above, STM32H7, CH32X03x.
+Supported MCUs: STM32: F0x2, L0, L4, F4 (OTG FS only), G0B1, H5x3, L5, U0x3, U535..585, C071.
+Planned support: STM32F103, STM32U59x and above, STM32H7, CH32X03x.
 
 Supported USB classes: CDC ACM (VCP), Printer, HID.
 Planned: MSC BOT SCSI.
 
 ## Quick start using STM32CubeIDE
 
-Out-of-the-box demos are currently available for STM32F0x2, F401, G0B1, L4, H503/523/533, U083, U535/545, U575. The demos uses pure event-driven approach with software-generated interrupts.
+Out-of-the-box demos are currently available for STM32F0x2, F401, G0B1, L4, H503/523/533, U083, U535/545, U575, C071. The demos uses pure event-driven approach with software-generated interrupts.
 Example code for other MCUs as well as more conventional, event loop-based version of demo will be added soon.
 By default, the example code creates a composite device made of generic text printer and two VCPs (only one VCP on F4 series due to only 3 application endpoints available in its USB OTG FS peripheral).
 The composite device demo compiles to little over 5 kB with `-Os` option.
