@@ -27,7 +27,7 @@
 #endif
 
 #include <string.h>
-#include "usb_dev_config.h"
+//#include "usb_dev_config.h"
 #include "usb_desc_def.h"
 #include "usb_dev.h"
 #include "usb_hw_if.h"

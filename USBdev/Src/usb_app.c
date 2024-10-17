@@ -124,7 +124,7 @@ static struct epdata_ out_epdata[USBD_NUM_EPPAIRS] = {
 #if USBD_PRINTER
 	{.ptr = prn_data.RxData, .count = 0},
 #endif
-#if USBD_HID
+#ifdef USBD_HID_OUT_EP
 	{.ptr = hid_data.OutReport}
 #endif
 };
@@ -1067,3 +1067,5 @@ void USB_IRQHandler(void)
 }
 
 #endif // SIMPLE_CDC
+
+_Static_assert(USBD_NUM_EPPAIRS <= USB_NEPPAIRS, "Too many endpoints - not supported by USB hardware");

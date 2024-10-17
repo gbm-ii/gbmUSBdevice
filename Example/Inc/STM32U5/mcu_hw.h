@@ -24,6 +24,11 @@
 
 #if defined(STM32U535xx) || defined(STM32U545xx)
 #include "boards/stm32nucleo64u.h"
+#elif defined(STM32U575xx)
+#include "boards/stm32nucleo144-u5.h"
+#define LED_PORT	LEDG_PORT
+#define LED_BIT	LEDG_BIT
+#define LED_MSK	LEDG_MSK
 #endif
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
