@@ -79,10 +79,11 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
 	while ((usbg->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL) == 0U);
 	usbg->GRSTCTL |= USB_OTG_GRSTCTL_CSRST;
 	while (usbg->GRSTCTL & USB_OTG_GRSTCTL_CSRST) ;
+	while ((usbg->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL) == 0U);
 //	usbg->GCCFG |= USB_OTG_GCCFG_PWRDWN;	// power up phy
 	// L4x6 RefMan 47.16.1
 //	usbg->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT_Msk | 6 << USB_OTG_GUSBCFG_TRDT_Pos;
-#ifdef USB_OTG_GUSBCFG_PHYLPCS
+#ifdef RCC_AHB2ENR1_OTGHSPHYEN
 	// U5A5 HS
 	usbg->GUSBCFG = USB_OTG_GUSBCFG_PHYLPCS | USB_OTG_GUSBCFG_FDMOD | 6 << USB_OTG_GUSBCFG_TRDT_Pos;	// force device mode, set TRDT for > 32 MHz
 #else
@@ -107,7 +108,10 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
 	usbg->GINTSTS = 0xBFFFFFFFU;
 	// RM 47.16.3
 	USB_OTG_DeviceTypeDef *usbdp = &usb->Device;
-#ifdef USB_OTG_GUSBCFG_PHYLPCS
+#ifdef USB_OTG_DCFG_ERRATIM
+	usbdp->DCFG |= USB_OTG_DCFG_ERRATIM;	// added 15.10.2024
+#endif
+#ifdef RCC_AHB2ENR1_OTGHSPHYEN
 	// U5A5
 	usbdp->DCFG |= 1u << USB_OTG_DCFG_DSPD_Pos;	// Full speed (PERSCHIVL?)
 #else
@@ -232,6 +236,11 @@ static uint8_t ep0siz_enc(uint8_t s)
 	return encsiz;
 }
 
+static void reset_in_endpoints(const struct usbdevice_ *usbd)
+{
+	memset(usbd->inep, 0, sizeof(struct epdata_) * usbd->cfg->numeppairs);
+}
+
 // reset request - setup EP0
 // RM 47.16.5
 static void USBhw_Reset(const struct usbdevice_ *usbd)
@@ -266,6 +275,7 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 	// both ep0 are always active
 	// enable ints
 	usbg->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM | USB_OTG_GINTMSK_IEPINT | USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_SOFM;
+    reset_in_endpoints(usbd);
 }
 
 static void USBhw_EnumDone(const struct usbdevice_ *usbd)
@@ -336,8 +346,6 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 static void USBhw_ResetCfg(const struct usbdevice_ *usbd)
 {
 	USB_OTG_TypeDef *usb = (USB_OTG_TypeDef *)usbd->usb;
-	//USB_OTG_GlobalTypeDef *usbg = (USB_OTG_GlobalTypeDef *)usbd->usb;
-	//USB_OTG_DeviceTypeDef *usbdp = &usb->Device;
 	USB_OTG_INEndpointTypeDef *InEP = usb->InEP;
 	USB_OTG_OUTEndpointTypeDef *OutEP = usb->OutEP;
 	const struct usbdcfg_ *cfg = usbd->cfg;
@@ -347,11 +355,8 @@ static void USBhw_ResetCfg(const struct usbdevice_ *usbd)
     	// Fix!!! - correct DIEPCTL, DOEPCTL values
     	InEP[i].DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
     	OutEP[i].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_SNAK;
-    	struct epdata_ *epd = &usbd->inep[i];
-    	epd->count = 0;
-    	epd->sendzlp = 0;
-    	epd->busy = 0;
 	}
+    reset_in_endpoints(usbd);
 }
 
 static void USBhw_WriteTxFIFO(const struct usbdevice_ *usbd, uint8_t epn, uint16_t bcount)
@@ -514,6 +519,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
     }
     if (gintsts & USB_OTG_GINTSTS_USBSUSP)
     {
+        reset_in_endpoints(usbd);
         if (usbd->Suspend_Handler)
         	usbd->Suspend_Handler();
     	usbg->GINTSTS = USB_OTG_GINTSTS_USBSUSP;

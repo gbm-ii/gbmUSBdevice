@@ -171,6 +171,11 @@ static const uint8_t eptype[] = {USBHW_EPTYPE_CTRL, USBHW_EPTYPE_ISO, USBHW_EPTY
 // In/Out EP pair shares the same type
 #define USB_EPR_EPTYPE(a) ((eptype[a]) << 9)
 
+static void reset_in_endpoints(const struct usbdevice_ *usbd)
+{
+	memset(usbd->inep, 0, sizeof(struct epdata_) * usbd->cfg->numeppairs);
+}
+
 // reset request - setup EP0
 static void USBhw_Reset(const struct usbdevice_ *usbd)
 {
@@ -194,6 +199,7 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 	usb->EPR[0] = USB_EPR_EPTYPE(0);// | USB_EPR_STATRX(USB_EPSTATE_VALID) | USB_EPR_STATTX(USB_EPSTATE_NAK);
     uint32_t epstate = USB_EPR_STATRX(USB_EPSTATE_NAK) | USB_EPR_STATTX(USB_EPSTATE_NAK);
 	SetEPRState(usbd, 0, USB_EPRX_STAT | USB_EPTX_STAT | USB_EP_DTOG_TX | USB_EP_DTOG_RX, epstate);
+    reset_in_endpoints(usbd);
 }
 
 // convert endpoint size to endpoint buffer size
@@ -238,24 +244,14 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 // disable app endpoints on set configuration 0 request
 void USBhw_ResetCfg(const struct usbdevice_ *usbd)
 {
-//	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
-//	USBreg *epr = usb->EPR;
 	const struct usbdcfg_ *cfg = usbd->cfg;
 	// enable app endpoints
     for (uint8_t i = 1; i < cfg->numeppairs; i++)
 	{
-//        epr[i] = i | USB_EPR_EPTYPE(0)
-//			| USB_EPR_STATRX(USB_EPSTATE_NAK)
-//			| USB_EPR_STATTX(USB_EPSTATE_NAK);
-
 		SetEPRState(usbd, i, USB_EPRX_STAT | USB_EPTX_STAT | USB_EP_DTOG_TX | USB_EP_DTOG_RX,
 			USB_EPR_STATRX(USB_EPSTATE_NAK) | USB_EPR_STATTX(USB_EPSTATE_NAK));
-
-    	struct epdata_ *epd = &usbd->inep[i];
-    	epd->count = 0;
-    	epd->sendzlp = 0;
-    	epd->busy = 0;
 	}
+    reset_in_endpoints(usbd);
 }
 
 // Driver functions called from other modules ============================
@@ -427,6 +423,9 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         usb->CNTR |= USB_CNTR_FSUSP;
         usb->ISTR = ~USB_ISTR_SUSP;
         usb->CNTR |= USB_CNTR_LPMODE;
+
+        reset_in_endpoints(usbd);
+
         // callback...
         if (usbd->Suspend_Handler)
         	usbd->Suspend_Handler();

@@ -22,15 +22,16 @@
 #include "stm32u5yy.h"
 #include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
 
+#if defined(STM32U535xx) || defined(STM32U545xx)
 #include "boards/stm32nucleo64u.h"
-
+#endif
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
  * in a header file.
  */
 
 /*
- * Minimal clock setup routine for STM32U5 (-Q version with SMPS, tested on Nucleo-U545 and Nucleo-U585))
+ * Minimal clock setup routine for STM32U5 (-Q version with SMPS, tested on Nucleo-U545 and Nucleo-U575))
  * The routine may be replaced by any user-writen or CubeMX-generated HAL routine providing stable 48 MHz clock to USB peripheral.
  */
 
@@ -49,7 +50,7 @@ static inline void ClockSetup(void)
 	PWR->CR3 |= PWR_CR3_REGSEL;	// turn on SMPS
 	while (~PWR->SVMSR & PWR_SVMSR_REGS) ;	// wait for SMPS ready
 
-#if 1
+#if !defined(RCC_AHB2ENR1_OTGHSPHYEN)
 	// osc and PLL setup for MCUS up to U58x
 	RCC->CR |= RCC_CR_HSI48ON;
 

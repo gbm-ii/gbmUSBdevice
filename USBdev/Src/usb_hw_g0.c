@@ -34,6 +34,7 @@
 #error unsupported MCU type
 #endif
 
+#include <string.h>	// memset()
 #include "usb_dev_config.h"
 #include "usb_desc_def.h"
 #include "usb_dev.h"
@@ -239,6 +240,11 @@ static void USBhw_EnableCtlSetup(const struct usbdevice_ *usbd)
 static const uint8_t eptype[] = {USBHW_EPTYPE_CTRL, USBHW_EPTYPE_ISO, USBHW_EPTYPE_BULK, USBHW_EPTYPE_INT};
 #define USB_EPR_EPTYPE(a) ((eptype[a]) << 9)
 
+static void reset_in_endpoints(const struct usbdevice_ *usbd)
+{
+	memset(usbd->inep, 0, sizeof(struct epdata_) * usbd->cfg->numeppairs);
+}
+
 // reset request - setup EP0
 static void USBhw_Reset(const struct usbdevice_ *usbd)
 {
@@ -260,6 +266,7 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 	usb->EPR[0] = USB_EPR_EPTYPE(0);// | USB_EPR_STATRX(USB_EPSTATE_VALID) | USB_EPR_STATTX(USB_EPSTATE_NAK);
     uint32_t epstate = USB_EPR_STATRX(USB_EPSTATE_NAK) | USB_EPR_STATTX(USB_EPSTATE_NAK);
 	SetEPRState(usbd, 0, USB_EP_RX_STRX | USB_EP_TX_STTX | USB_EP_DTOG_TX | USB_EP_DTOG_RX, epstate);
+    reset_in_endpoints(usbd);
 }
 
 // convert endpoint size to endpoint buffer size
@@ -304,23 +311,14 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 // disable app endpoints on set configuration 0 request
 static void USBhw_ResetCfg(const struct usbdevice_ *usbd)
 {
-	//USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
-	//USBreg *epr = usb->EPR;
 	const struct usbdcfg_ *cfg = usbd->cfg;
 	// disable app endpoints
     for (uint8_t i = 1; i < cfg->numeppairs; i++)
 	{
-//        epr[i] = i | USB_EPR_EPTYPE(0)
-//			| USB_EPR_STATRX(USB_EPSTATE_NAK)
-//			| USB_EPR_STATTX(USB_EPSTATE_NAK);
 		SetEPRState(usbd, i, USB_EP_RX_STRX | USB_EP_TX_STTX | USB_EP_DTOG_TX | USB_EP_DTOG_RX,
 			USB_EPR_STATRX(USB_EPSTATE_NAK) | USB_EPR_STATTX(USB_EPSTATE_NAK));
-
-    	struct epdata_ *epd = &usbd->inep[i];
-    	epd->count = 0;
-    	epd->sendzlp = 0;
-    	epd->busy = 0;
 	}
+    reset_in_endpoints(usbd);
 }
 
 // write data packet to be sent
@@ -486,9 +484,9 @@ void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 
         /* clear ISTR after setting CNTR_FSUSP */
         usb->ISTR = ~USB_ISTR_SUSP;
-
         usb->CNTR |= USB_CNTR_SUSPRDY | USB_CNTR_WKUPM;
 
+        reset_in_endpoints(usbd);
         // suspend callback should go here
         // callback...
         if (usbd->Suspend_Handler)

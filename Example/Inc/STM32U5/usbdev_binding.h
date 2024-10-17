@@ -2,20 +2,15 @@
  * usbdev_binding.h
  *
  *  Created on: Oct 22, 2023
- *      Author: Grzegorz
+ *      Author: gbm
  */
 
 #ifndef INC_USBDEV_BINDING_H_
 #define INC_USBDEV_BINDING_H_
 
-// binding for G0B1
+// binding for U5xx series
 
-#define USB_IRQ_PRI	2
-//#define VCOM_TX_IRQn	I2C1_ER_IRQn
-//#define VCOM_TX_IRQHandler	I2C1_ER_IRQHandler
-//#define VCOM_RX_IRQn	I2C1_EV_IRQn
-//#define VCOM_RX_IRQHandler	I2C1_EV_IRQHandler
-
+#define USB_IRQ_PRI	12
 
 #define VCOM0_rx_IRQn	RCC_IRQn
 #define VCOM0_rx_IRQHandler	RCC_IRQHandler

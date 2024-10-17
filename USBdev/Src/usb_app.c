@@ -321,7 +321,6 @@ __attribute__ ((weak)) void VCP_ConnStatus(uint8_t ch, bool on)
 // called on reset, suspend, resume
 static void usbdev_session_init(void)
 {
-	memset(in_epdata, 0, sizeof(in_epdata));	// should rather be done in other module
 #if USBD_CDC_CHANNELS
 	for (uint8_t ch = 0; ch < USBD_CDC_CHANNELS; ch++)
 	{
