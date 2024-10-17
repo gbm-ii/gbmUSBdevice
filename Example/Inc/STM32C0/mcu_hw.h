@@ -22,7 +22,7 @@
 #include <stdbool.h>
 #include "stm32c0yy.h"
 #include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
-#include "boards/stm32nucleo-c071.h"
+#include "boards/stm32nucleo64.h"
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
@@ -32,7 +32,7 @@
 // minimal clock setup required for USB device operation
 static inline void ClockSetup(void)
 {
-	// set HCLK to 64 MHz PLL fed by HSI, use HSI48 synchronized to SOF for USB
+	// set HCLK to 48 MHz HSI48 synchronized to SOF*****************************
 	// PWR Range 1 is the default - ok for 64 MHz
 	RCC->CR |= RCC_CR_HSIUSB48ON;
 	FLASH->ACR |= FLASH_ACR_PRFTEN | 2u << FLASH_ACR_LATENCY_Pos; // 2 WS up to 64 MHz

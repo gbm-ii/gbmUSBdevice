@@ -21,7 +21,7 @@
 
 #include "stm32h5yy.h"
 #include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
-#include "boards/stm32nucleo64u.h"
+#include "boards/stm32nucleo64.h"
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline

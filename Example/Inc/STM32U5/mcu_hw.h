@@ -23,7 +23,7 @@
 #include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
 
 #if defined(STM32U535xx) || defined(STM32U545xx)
-#include "boards/stm32nucleo64u.h"
+#include "boards/stm32nucleo64.h"
 #elif defined(STM32U575xx)
 #include "boards/stm32nucleo144-u5.h"
 #define LED_PORT	LEDG_PORT
