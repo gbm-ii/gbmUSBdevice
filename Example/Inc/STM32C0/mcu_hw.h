@@ -35,7 +35,7 @@ static inline void ClockSetup(void)
 	// set HCLK to 48 MHz HSI48 synchronized to SOF*****************************
 	// PWR Range 1 is the default - ok for 64 MHz
 	RCC->CR |= RCC_CR_HSIUSB48ON;
-	FLASH->ACR |= FLASH_ACR_PRFTEN | 2u << FLASH_ACR_LATENCY_Pos; // 2 WS up to 64 MHz
+	FLASH->ACR |= FLASH_ACR_PRFTEN | 1u << FLASH_ACR_LATENCY_Pos; // 1 WS up to 48 MHz
     RCC->APBENR1 |= RCC_APBENR1_CRSEN;
     CRS->CR |= CRS_CR_AUTOTRIMEN | CRS_CR_CEN;	// sync HSI48 to USB SOF
 

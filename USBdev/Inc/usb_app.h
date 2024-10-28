@@ -10,6 +10,8 @@
 
 #include <stdint.h>
 
+extern volatile uint32_t usbdev_msec;
+
 void usbdev_tick(void);
 void USBapp_Init(void);
 void USBapp_DeInit(void);

@@ -39,7 +39,7 @@ Composite device configuration may be changed by editing `usb_dev_config.h` file
 
 Before calling `USBapp_Init()`:
 - MCU and USB clocking must be set properly. This may be achieved using CubeMX-generated routine, replacing the `ClockSetup()` supplied with the examples. USB clock must be generated using:
-	- PLL fed by HSE (all STM32; the only option for F0, F4)
+	- PLL fed by HSE (all STM32; the only option for F1, F4)
 	- HSI48 synchronized via CRS to USB SOF (F0x2, G0B1, L0, L4 excluding L47x, L5, U5, H5, H7)
 	- PLL fed by HSI synchronized to LSE (STM32L47x, esp. Nucleo-L476 board)
 - USB peripheral pins must be configured properly and the USB module must be activated. 

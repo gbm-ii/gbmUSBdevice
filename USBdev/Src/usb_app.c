@@ -82,9 +82,15 @@ __attribute__ ((weak)) bool BtnGet(void)
 
 static bool HIDupdateKB(const struct usbdevice_ *usbd)
 {
+#ifdef HID_PWR
+	bool change = (bool)hid_data.InReport[0] ^ BtnGet();
+	if (change)
+		hid_data.InReport[0] ^= 1;
+#else
 	bool change = (bool)hid_data.InReport[2] ^ BtnGet();
 	if (change)
 		hid_data.InReport[2] ^= HIDKB_KPADSTAR;
+#endif
 	return change;
 }
 
@@ -366,7 +372,7 @@ static void usbdev_resume(void)
 }
 
 //========================================================================
-uint32_t usbdev_msec;
+volatile uint32_t usbdev_msec;
 
 // called from USB interrupt at 1 kHz (SOF)
 void usbdev_tick(void)
@@ -567,22 +573,40 @@ void VCOM2_tx_IRQHandler(void)
 #if USBD_HID
 // HID keyboard report descriptor
 const uint8_t hid_report_desc[] = {
+#ifdef HID_PWR
+		// experimental: power keys
+		0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
+		0x09, 0x80,                    // USAGE (System Control)
+		0xa1, 0x01,                    // COLLECTION (Application)
+		0x19, 0x81,                    //   USAGE_MINIMUM (System Sleep)
+		0x29, 0x83,                    //   USAGE_MAXIMUM (System Wake Up)
+		0x15, 0x00,                    //   LOGICAL_MINIMUM (0)   <---------- Add these three lines
+		0x25, 0x01,                    //   LOGICAL_MAXIMUM (1)   <----------
+		0x75, 0x01,                    //   REPORT_SIZE (1)       <----------
+		0x95, 0x03,                    //   REPORT_COUNT (3)
+		0x81, 0x06,                    //   INPUT (Data,Var,Rel)
+		0x95, 0x05,                    //   REPORT_COUNT (5)
+		0x81, 0x03,                    //   INPUT (Cnst,Var,Abs)
+		//0xc0                           // END_COLLECTION
+#else
 	0x05, 0x01,	//	Usage Page (Generic Desktop)
 	0x09, 0x06,	//	Usage (Keyboard)
 	0xA1, 0x01,	//	Collection (Application)
 
+	// input report for modifier keys
 	0x05, 0x07,	//	Usage Page (Key Codes);
-	0x19, 0xe0,	//	Usage Minimum (224)
-	0x29, 0xE7,	//	Usage Maximum (231)
+	0x19, 0xe0,	//	Usage Minimum (224) - Left Control
+	0x29, 0xE7,	//	Usage Maximum (231) - Right GUI
 	0x15, 0x00,	//	Logical Minimum (0)
 	0x25, 0x01,	//	Logical Maximum (1)
-	0x75, 0x01,	//	Report Size (1)
-	0x95, 0x08,	//	Report Count (8)
+	0x75, 0x01,	//	Report Size (1) - one bit
+	0x95, 0x08,	//	Report Count (8) - times 8
 	0x81, 0x02,	//	Input (Data, Variable, Absolute); Modifier byte
-	0x95, 0x01,	//	Report Count (1)
+	0x95, 0x01,	//	Report Count (1) - one spare byte
 	0x75, 0x08,	//	Report Size (8)
 	0x81, 0x01,	//	Input (Constant), reserved byte
 
+	// output report for keyboard LEDs
 	0x95, 0x05,	//	Report Count (was 5)
 	0x75, 0x01,	//	Report Size (1)
 	0x05, 0x08,	//	Usage Page (Page# for LEDs)
@@ -593,19 +617,26 @@ const uint8_t hid_report_desc[] = {
 	0x75, 0x03,	//	Report Size (was 3)
 	0x91, 0x01,	//	Output (Constant); LED report padding
 
+	// input report for std keys
 	0x95, 0x06,	//	Report Count (6)
+//	0x95, 0x05,	//	Report Count (5)
 	0x75, 0x08,	//	Report Size (8)
 	0x15, 0x00,	//	Logical Minimum (0)
-	0x25, 0x65,	//	Logical Maximum(101)
+//	0x25, 0x65,	//	Logical Maximum(101)
+	0x25, 0x66,	//	Logical Maximum(Power)
 	0x05, 0x07,	//	Usage Page (Key Codes)
 	0x19, 0x00,	//	Usage Minimum (0)
-	0x29, 0x65,	//	Usage Maximum (101)
+//	0x29, 0x65,	//	Usage Maximum (101)
+	0x29, 0x66,	//	Usage Maximum (Keyboard Power)
 	0x81, 0x00,	//	Input (Data Array); (6 bytes)
+
+#endif
 
 	0xC0	//	End Collection
 };
 
-void HIDoutHandler(const struct usbdevice_ *usbd, uint8_t epn)
+// not used, report send via control pipe
+static void HIDoutHandler(const struct usbdevice_ *usbd, uint8_t epn)
 {
 	hid_data.OutReport[2] = hid_data.OutReport[0];
 }
@@ -847,7 +878,11 @@ static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc = {
 #endif
 #if USBD_HID
 	.hid = {
+#ifdef HID_PWR
+		.hidifdesc = IFDESC(IFNUM_HID, 1, USB_CLASS_HID, HID_SUBCLASS_NONE, HID_PROTOCOL_NONE, USBD_SIDX_HID),
+#else
 		.hidifdesc = IFDESC(IFNUM_HID, 1, USB_CLASS_HID, HID_SUBCLASS_NONE, HID_PROTOCOL_KB, USBD_SIDX_HID),
+#endif
 		.hiddesc = {
 			.bLength = sizeof(struct USBdesc_hid_), .bDescriptorType = USB_DESCTYPE_HID, .bcdHID = USB16(0x101),
 			.bCountryCode = 0, .bNumDescriptors = 1, .bHidDescriptorType = USB_DESCTYPE_HIDREPORT,
@@ -883,7 +918,7 @@ static const struct epcfg_ outcfg[USBD_NUM_EPPAIRS] = {
 	{.ifidx = IFNUM_PRN, .handler = DataReceivedHandler},
 #endif
 #if USBD_HID
-	{.ifidx = IFNUM_HID, .handler = HIDoutHandler},
+	{.ifidx = IFNUM_HID, .handler = HIDoutHandler},	// HID out ep, not used
 #endif
 };
 static const struct epcfg_ incfg[USBD_NUM_EPPAIRS] = {

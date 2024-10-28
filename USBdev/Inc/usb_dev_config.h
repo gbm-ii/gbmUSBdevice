@@ -13,6 +13,8 @@
 #define USBD_PRINTER	0
 #define USBD_HID	1	// new, tested on U545
 
+//#define HID_PWR
+
 #else	// simple CDC
 
 #define USBD_MSC 0	// not supported yet
@@ -38,10 +40,13 @@
 #define PRN_DATA_EP_SIZE	64u
 
 #if USBD_HID
+#ifdef HID_PWR
 #define HID_IN_EP_SIZE	8u	// 8 bytes for keyboard report (flags, reserved, 6 keys)
-//#define HID_OUT_EP_SIZE	8u	// min. size
-
+#define HID_IN_REPORT_SIZE 	1u
+#else
+#define HID_IN_EP_SIZE	8u	// 8 bytes for keyboard report (flags, reserved, 6 keys)
 #define HID_IN_REPORT_SIZE 	8u
+#endif
 #define HID_OUT_REPORT_SIZE	8u
 
 #define HID_POLLING_INTERVAL	20u	// ms

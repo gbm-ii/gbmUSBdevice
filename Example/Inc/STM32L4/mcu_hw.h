@@ -19,7 +19,7 @@
 #ifndef INC_MCU_HW_H_
 #define INC_MCU_HW_H_
 
-#include "stdbool.h"
+#include <stdbool.h>
 #include "stm32l4yy.h"
 #include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
 #include "boards/stm32nucleo64.h"

@@ -56,7 +56,7 @@ static inline void ClockSetup(void)
 	while (~PWR->SVMSR & PWR_SVMSR_REGS) ;	// wait for SMPS ready
 
 #if !defined(RCC_AHB2ENR1_OTGHSPHYEN)
-	// osc and PLL setup for MCUS up to U58x
+	// osc and PLL setup for MCUs up to U58x
 	RCC->CR |= RCC_CR_HSI48ON;
 
 	RCC->APB1ENR1 |= RCC_APB1ENR1_CRSEN;
