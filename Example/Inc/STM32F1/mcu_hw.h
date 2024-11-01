@@ -19,8 +19,12 @@
 #ifndef INC_MCU_HW_H_
 #define INC_MCU_HW_H_
 
+#include <stdbool.h>
 #include "stm32f10y.h"
 #include "bf_reg.h"
+
+#define BLUEPILLPLUS
+#include "boards/stm32f103bluepill.h"
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
@@ -55,7 +59,7 @@ static inline void noHAL_Delay(uint8_t ms)
 	SysTick->LOAD = HCLK_FREQ / 1000u * ms - 1u;
 	SysTick->VAL = 0;
 	SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk;
-	while (SysTick) ;
+	while (~SysTick->CTRL & SysTick_CTRL_COUNTFLAG_Msk) ;
 	SysTick->CTRL = 0;
 }
 
@@ -65,7 +69,7 @@ static inline void USBhwSetup(void)
 	RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_AFIOEN;
 	AFIO->MAPR = AFIO_MAPR_SWJ_CFG_JTAGDISABLE;	// SWD only
 
-	// Pull down PA12 (USBDP) to disable USB pullup detection
+	// Pull down PA12 (USBDP) to disable USB pullup detection - needed for possible re-enumeration
 	BF4F(GPIOA->CRH, 12) = GPIO_CR_OOD_S;
 	
 	// USB enumeration delay - replace with HAL_Delay if HAL is used
@@ -78,9 +82,22 @@ static inline void USBhwSetup(void)
 static inline void LED_Btn_Setup(void)
 {
 #ifdef LED_PORT
-	RCC->APB2ENR |= RCC_APB2ENR_GPIOEN(LED_PORT);
-	BF4F(LED_PORT->CRL, LED_BIT) = GPIO_CR_OPP_S;
+	RCC->APB2ENR |= RCC_IOENR_GPIOEN(LED_PORT);
+	CRF(LED_PORT, LED_BIT) = GPIO_CR_OPP_S;
+#endif
+#ifdef BTN_PORT
+	RCC->APB2ENR |= RCC_IOENR_GPIOEN(BTN_PORT);
+	CRF(BTN_PORT, BTN_BIT) = GPIO_CR_INP;
+	BTN_PORT->BRR = BTN_MSK;
 #endif
 }
+
+static inline void hwLED_Set(bool on)
+{
+#ifdef LED_PORT
+	LED_PORT->BSRR = on ^ LED_ACTIVE_LEVEL ? LED_MSK << 16 : LED_MSK;
+#endif
+}
+
 
 #endif /* INC_MCU_HW_H_ */
