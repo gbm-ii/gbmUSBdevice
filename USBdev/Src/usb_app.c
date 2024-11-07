@@ -191,30 +191,7 @@ void vcom_write(uint8_t ch, const char *buf, uint16_t size)
 // put character into sendbuf, generate send packet request event
 void vcom_putchar(uint8_t ch, char c)
 {
-#if 0
-	if (ch < USBD_CDC_CHANNELS)
-	{
-		struct cdc_data_ *cdp = &cdc_data[ch];
-
-		while (cdp->connected && cdp->TxLength == CDC_DATA_EP_SIZE) ;	// buffer full -> wait
-
-		if (cdp->connected)
-		{
-			__disable_irq();
-			cdp->TxData[cdp->TxLength++] = c;
-			if (cdp->TxLength == CDC_DATA_EP_SIZE)
-			{
-				cdp->TxTout = 0;
-				NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);
-			}
-			else
-				cdp->TxTout = TX_TOUT;
-			__enable_irq();
-		}
-	}
-#else
 	vcom_write(ch, &c, 1);
-#endif
 }
 
 void vcom_putstring(uint8_t ch, const char *s)
@@ -282,8 +259,8 @@ static inline void send_serialstate_notif(uint8_t ch)
 		cdc_data[ch].SerialState ^= ssnotif.wSerialState & ~(CDC_SERIAL_STATE_TX_CARRIER | CDC_SERIAL_STATE_RX_CARRIER);	// clear transient flags sent
 	}
 }
-#endif	// USBD_CDC_CHANNELS
 
+//========================================================================
 // overwrite for any real-world use - this is just echo for demo application
 // return 1 if prompt requested
 __attribute__ ((weak)) uint8_t vcom_process_input(uint8_t ch, uint8_t c)
@@ -293,6 +270,13 @@ __attribute__ ((weak)) uint8_t vcom_process_input(uint8_t ch, uint8_t c)
 #endif
 	return 0;
 }
+
+__attribute__ ((weak)) void VCP_ConnStatus(uint8_t ch, bool on)
+{
+	// define to control board's LED for VCP connection status signaling
+}
+
+#endif	// USBD_CDC_CHANNELS
 
 // enable data reception on a specified endpoint - called after received data is processed
 static void allow_rx(uint8_t epn)
@@ -304,24 +288,23 @@ static void allow_rx(uint8_t epn)
 
 #if USBD_PRINTER
 
+__attribute__ ((weak)) uint8_t prn_process_input(uint8_t c)
+{
+	return vcom_process_input(0, c);	// same handling as vcom0
+}
+
 void PRN_rx_IRQHandler(void)
 {
 	if (prn_data.RxLength)
 	{
 		uint8_t *rxptr = prn_data.RxData; //
 		for (uint8_t i = 0; i < prn_data.RxLength; i++)
-			vcom_process_input(0, *rxptr++);	// same handling as vcom0
+			prn_process_input(*rxptr++);	// same handling as vcom0
 		prn_data.RxLength = 0;
 		allow_rx(PRN_DATA_OUT_EP);
 	}
 }
 #endif
-
-//========================================================================
-__attribute__ ((weak)) void VCP_ConnStatus(uint8_t ch, bool on)
-{
-	// define to control board's LED for VCP connection status signaling
-}
 
 //========================================================================
 // called on reset, suspend, resume
@@ -587,7 +570,7 @@ const uint8_t hid_report_desc[] = {
 		0x81, 0x06,                    //   INPUT (Data,Var,Rel)
 		0x95, 0x05,                    //   REPORT_COUNT (5)
 		0x81, 0x03,                    //   INPUT (Cnst,Var,Abs)
-		//0xc0                           // END_COLLECTION
+		0xc0                           // END_COLLECTION
 #else
 	0x05, 0x01,	//	Usage Page (Generic Desktop)
 	0x09, 0x06,	//	Usage (Keyboard)
@@ -619,20 +602,16 @@ const uint8_t hid_report_desc[] = {
 
 	// input report for std keys
 	0x95, 0x06,	//	Report Count (6)
-//	0x95, 0x05,	//	Report Count (5)
 	0x75, 0x08,	//	Report Size (8)
 	0x15, 0x00,	//	Logical Minimum (0)
-//	0x25, 0x65,	//	Logical Maximum(101)
-	0x25, 0x66,	//	Logical Maximum(Power)
+	0x25, 0x65,	//	Logical Maximum(101)
 	0x05, 0x07,	//	Usage Page (Key Codes)
 	0x19, 0x00,	//	Usage Minimum (0)
-//	0x29, 0x65,	//	Usage Maximum (101)
-	0x29, 0x66,	//	Usage Maximum (Keyboard Power)
+	0x29, 0x65,	//	Usage Maximum (101)
 	0x81, 0x00,	//	Input (Data Array); (6 bytes)
 
-#endif
-
 	0xC0	//	End Collection
+#endif
 };
 
 // not used, report send via control pipe
@@ -697,7 +676,6 @@ void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
 // called form USB hw interrupt
 void DataSentHandler(const struct usbdevice_ *usbd, uint8_t epn)
 {
-//	LED_Toggle();
 	switch (epn)
 	{
 #if USBD_CDC_CHANNELS
