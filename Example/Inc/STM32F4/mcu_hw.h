@@ -31,7 +31,7 @@
 #undef HSE_VALUE
 
 #ifdef BLACKPILL
-// F401 BlackPill board, 8 MHz osc
+// F401 BlackPill board, 25 MHz osc
 #define HSE_VALUE 25000000u
 #define RCC_CR_HSESEL	RCC_CR_HSEON
 
