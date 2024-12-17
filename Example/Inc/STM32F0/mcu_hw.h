@@ -54,7 +54,7 @@ static inline void USBhwSetup(void)
 static inline void LED_Btn_Setup(void)
 {
 #ifdef LED_PORT
-	RCC->AHB2ENR1 |= RCC_IOENR_GPIOEN(LED_PORT);
+	RCC->AHBENR |= RCC_IOENR_GPIOEN(LED_PORT);
 	BF2F(LED_PORT->MODER, LED_BIT) = GPIO_MODER_OUT;
 #endif
 #ifdef BTN_PORT

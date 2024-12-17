@@ -36,7 +36,12 @@
 #define EVTREC(a)	usbstat = usbstat << 4 | a
 
 // forward def
+#define SINGLE_CDC (USBD_CDC_CHANNELS == 1 && (USBD_MSC + USBD_PRINTER + USBD_HID == 0))
+#if SINGLE_CDC
+static const struct cfgdesc_cdc_ ConfigDesc;
+#else
 static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc;
+#endif
 
 #define SIGNON_DELAY	50u
 
@@ -762,7 +767,8 @@ static const uint8_t * const strdescv[USBD_NSTRINGDESCS] = {
 #endif
 };
 
-#if 0
+#define SINGLE_CDC (USBD_CDC_CHANNELS == 1 && (USBD_MSC + USBD_PRINTER + USBD_HID == 0))
+#if SINGLE_CDC
 // device descriptor for single function CDC ACM
 static const struct USBdesc_device_ DevDesc = {
 	.bLength = sizeof(struct USBdesc_device_),
@@ -793,7 +799,11 @@ static const struct cfgdesc_cdc_ ConfigDesc = {
 		.bmAttributes = USB_CONFIGD_BUS_POWERED,
 		.bMaxPower = USB_CONFIGD_POWER_mA(100)
 	},
-	.cdc = CDCVCOMDESC(IFNUM_CDC0_CONTROL, CDC0_INT_IN_EP, CDC0_DATA_IN_EP, CDC0_DATA_OUT_EP, CDCACM_FDCAP_LC_LS)
+	.cdc = {
+		[0] = {
+			.cdcdesc = CDCVCOMDESC(IFNUM_CDC0_CONTROL, CDC0_INT_IN_EP, CDC0_DATA_IN_EP, CDC0_DATA_OUT_EP, CDCACM_FDCAP_LC_LS)
+		}
+	}
 };
 #else
 // general composite device
