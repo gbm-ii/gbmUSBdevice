@@ -36,21 +36,14 @@
 
 uint8_t msc_max_lun = 0;
 
+#if USBD_PRINTER
 struct prn_data_ prn_data;
 
- __attribute__ ((weak)) void xxcdc_LineStateHandler(const struct usbdevice_ *usbd, uint8_t idx)
+__attribute__ ((weak)) const uint8_t *prn_get_custom_id(void)
 {
-    /* NOTE: This function should not be modified, if the callback is needed,
-       it should be implemented in app file
-    */
+	return 0;
 }
-
- __attribute__ ((weak)) void xxcdc_LineCodingHandler(const struct usbdevice_ *usbd, uint8_t idx)
-{
-    /* NOTE: This function should not be modified, if the callback is needed,
-       it should be implemented in app file
-    */
-}
+#endif
 
  // class-specific Clear EP Stall handler called by usb_dev.c
 void USBclass_ClearEPStall(const struct usbdevice_ *usbd, uint8_t epaddr)
@@ -58,9 +51,11 @@ void USBclass_ClearEPStall(const struct usbdevice_ *usbd, uint8_t epaddr)
 	uint8_t epn = epaddr & EPNUMMSK;
 	uint8_t interface = epaddr & EP_IS_IN ? usbd->cfg->inepcfg[epn].ifidx : usbd->cfg->outepcfg[epn].ifidx;
 	uint8_t classid = usbd->cfg->ifassoc[interface].classid;
+#if USBD_MSC
 	if (classid == USB_CLASS_STORAGE)
 	{
 	}
+#endif
 }
 
 void USBclass_HandleRequest(const struct usbdevice_ *usbd)
@@ -82,20 +77,18 @@ void USBclass_HandleRequest(const struct usbdevice_ *usbd)
 			uint8_t classid = usbd->cfg->ifassoc[interface].classid;
 			switch (classid)
 			{
-			case USB_CLASS_STORAGE:
 #if USBD_MSC
-			case IFNUM_MSC:
+			case USB_CLASS_STORAGE:
 				switch (req->bRequest)
 				{
 				case BOT_GET_MAX_LUN :
 					if (req->wValue == 0 && req->wLength == 1 && (req->bmRequest & 0x80))
 					{
 //						hmsc->max_lun = USBD_Storage_Interface_fops_FS.GetMaxLun();
-//						USBD_CtlSendData (pdev, (uint8_t *)&hmsc->max_lun, 1);
-//						USBdev_SendStatus(usbd, (const uint8_t *)&cdc_data[funidx].LineCoding, 1, 0);
+//						USBdev_SendStatus(usbd, (uint8_t *)&hmsc->max_lun, 1);
 					}
 					else
-						USBD_CtlError(pdev , req);
+						USBdev_CtrlError(usbpd);
 					break;
 
 				case BOT_RESET :
@@ -208,17 +201,22 @@ void USBclass_HandleRequest(const struct usbdevice_ *usbd)
 				// assume only single printer function
 				switch (req->bRequest)
 				{
-					static const uint8_t prn_DeviceID[91] = {
-						"\0\x59"						// size of string, 2 B, MSB first
-						"MFG:Generic;"                  // 12 manufacturer (case sensitive)
-						"MDL:Generic_/_Text_Only;"      // 24 model (case sensitive)
-						"CMD:1284.4;"                   // 11 PDL command set
-						"CLS:PRINTER;"                  // 12 class
-						"DES:Generic text only printer;"// 30 description
-					 };
 				case PRNRQ_GET_DEVICE_ID:
 					if (req->wValue.w == 0)
-						USBdev_SendStatus(usbd, (const uint8_t *)prn_DeviceID, MIN(req->wLength, sizeof(prn_DeviceID)), 0);
+					{
+						static const uint8_t prn_DeviceID[91] = {
+							"\0\x5b"						// size of string, 2 B, MSB first
+							"MFG:Generic;"                  // 12 manufacturer (case sensitive)
+							"MDL:Generic_/_Text_Only;"      // 24 model (case sensitive)
+							"CMD:1284.4;"                   // 11 PDL command set
+							"CLS:PRINTER;"                  // 12 class
+							"DES:Generic text only printer;"// 30 description
+						};
+						const uint8_t *prnId = prn_get_custom_id();
+						if (!prnId)
+							prnId = prn_DeviceID;
+						USBdev_SendStatus(usbd, prnId, MIN(req->wLength, prnId[1]), 0);
+					}
 					else
 						USBdev_CtrlError(usbd);
 					break;
