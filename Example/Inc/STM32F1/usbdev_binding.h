@@ -1,8 +1,8 @@
 /*
- * usbdev_binding.h
+ * usbdev_binding.h - MCU- and application-specific
  *
  *  Created on: Oct 22, 2023
- *      Author: Grzegorz
+ *      Author: gbm
  */
 
 #ifndef INC_USBDEV_BINDING_H_

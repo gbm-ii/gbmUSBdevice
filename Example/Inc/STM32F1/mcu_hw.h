@@ -23,8 +23,10 @@
 #include "stm32f10y.h"
 #include "bf_reg.h"
 
-#define BLUEPILLPLUS
+//#define BLUEPILLPLUS
+#ifdef BLUEPILLPLUS
 #include "boards/stm32f103bluepill.h"
+#endif
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
