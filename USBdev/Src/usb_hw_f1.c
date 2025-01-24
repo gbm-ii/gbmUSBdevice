@@ -197,11 +197,11 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
 	addr += ep0size;
 	bufdesc[0].RxAddress = addr;
 	bufdesc[0].RxCount = SetRxNumBlock(ep0size) << 10;
+    usb->DADDR.v = USB_DADDR_EF;
 	usb->EPR[0].v = USB_EPR_EPTYPE(0);
     uint32_t epstate = USB_EPR_STATRX(USB_EPSTATE_NAK) | USB_EPR_STATTX(USB_EPSTATE_NAK);
 	SetEPRState(usbd, 0, USB_EPRX_STAT | USB_EPTX_STAT | USB_EP_DTOG_TX | USB_EP_DTOG_RX, epstate);
     usb->ISTR.v = 0;
-    usb->DADDR.v = USB_DADDR_EF;
     usb->CNTR.v = USB_CNTR_CTRM | USB_CNTR_RESETM | USB_CNTR_SUSPM  | USB_CNTR_WKUPM | USB_CNTR_SOFM;
 
     reset_in_endpoints(usbd);
@@ -320,13 +320,16 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 	
 	uint16_t istr = usb->ISTR.v & (usb->CNTR.v | 0xff);
 	
-    if (istr & USB_ISTR_WKUP)
+    if ((istr & (USB_ISTR_WKUP | USB_ISTR_RESET)))
 	{
-        usb->CNTR.v &= ~USB_CNTR_LP_MODE;
-        usb->CNTR.v &= ~USB_CNTR_FSUSP;
-        // call the resume routine here
-        if (usbd->Resume_Handler)
-        	usbd->Resume_Handler();
+    	if (usb->CNTR.v & USB_CNTR_FSUSP)
+    	{
+			usb->CNTR.v &= ~USB_CNTR_LP_MODE;
+			usb->CNTR.v &= ~USB_CNTR_FSUSP;
+			// call the resume routine here
+			if (usbd->Resume_Handler)
+				usbd->Resume_Handler();
+    	}
         usb->ISTR.v = (uint16_t)~USB_ISTR_WKUP;
     }
 
@@ -338,6 +341,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         	usbd->Reset_Handler();
         return;
     }
+
     if (istr & USB_ISTR_CTR)	// EP traffic interrupt
 	{
 		uint8_t  epn = usb->ISTR.v & USB_ISTR_EP_ID;
@@ -373,6 +377,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 			USBdev_OutEPHandler(usbd, epn, *epr & USB_EP0R_SETUP);
 		}
 	}
+
     if (istr & USB_ISTR_SUSP)	// suspend
 	{
         /* Force low-power mode in the macrocell */
