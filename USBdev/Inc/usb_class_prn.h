@@ -30,6 +30,7 @@ struct prn_services_ {
 
 struct prn_data_ {
 	uint16_t RxLength;
+	uint16_t RxIdx;
 	uint8_t RxData[PRN_DATA_EP_SIZE];
 	uint8_t Status;
 };

@@ -34,7 +34,9 @@
 #include "usb_class_prn.h"
 #include "usb_class_hid.h"
 
+#if USBD_MSC
 uint8_t msc_max_lun = 0;
+#endif
 
 #if USBD_PRINTER
 struct prn_data_ prn_data;
@@ -54,6 +56,7 @@ void USBclass_ClearEPStall(const struct usbdevice_ *usbd, uint8_t epaddr)
 #if USBD_MSC
 	if (classid == USB_CLASS_STORAGE)
 	{
+		msc_bot_reset();
 	}
 #endif
 }
@@ -85,7 +88,7 @@ void USBclass_HandleRequest(const struct usbdevice_ *usbd)
 					if (req->wValue == 0 && req->wLength == 1 && (req->bmRequest & 0x80))
 					{
 //						hmsc->max_lun = USBD_Storage_Interface_fops_FS.GetMaxLun();
-//						USBdev_SendStatus(usbd, (uint8_t *)&hmsc->max_lun, 1);
+						USBdev_SendStatus(usbd, (uint8_t *)&msc_max_lun, 1);
 					}
 					else
 						USBdev_CtrlError(usbpd);
@@ -94,7 +97,7 @@ void USBclass_HandleRequest(const struct usbdevice_ *usbd)
 				case BOT_RESET :
 					if (req->wValue == 0 && req->wLength == 0 && !(req->bmRequest & 0x80))
 					{
-//						MSC_BOT_Reset(pdev);
+						msc_bot_reset();
 						USBdev_SendStatusOK(usbd);
 					}
 					else

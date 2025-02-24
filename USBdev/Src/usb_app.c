@@ -302,11 +302,20 @@ void PRN_rx_IRQHandler(void)
 {
 	if (prn_data.RxLength)
 	{
-		uint8_t *rxptr = prn_data.RxData; //
-		for (uint8_t i = 0; i < prn_data.RxLength; i++)
-			prn_process_input(*rxptr++);	// same handling as vcom0
-		prn_data.RxLength = 0;
-		allow_rx(PRN_DATA_OUT_EP);
+		while (prn_data.RxIdx < prn_data.RxLength && NVIC_GetEnableIRQ(PRN_rx_IRQn))
+		{
+			prn_process_input(prn_data.RxData[prn_data.RxIdx++]);
+		}
+		if (prn_data.RxIdx == prn_data.RxLength)
+		{
+			prn_data.RxLength = 0;
+			prn_data.RxIdx = 0;
+			allow_rx(PRN_DATA_OUT_EP);
+		}
+		else
+		{
+			NVIC_SetPendingIRQ(PRN_rx_IRQn);
+		}
 	}
 }
 #endif
@@ -475,33 +484,43 @@ void VCOM_rx_IRQHandler(uint8_t ch)
 	{
 		cdc_data[ch].session.connected = 1;
 		VCP_ConnStatus(ch, 1);
-		uint8_t *rxptr = cdc_data[ch].RxData; //
 		uint8_t pival = 0;
-		for (uint8_t i = 0; i < cdc_data[ch].session.RxLength; i++)
+		while (cdc_data[ch].session.RxIdx < cdc_data[ch].session.RxLength && NVIC_GetEnableIRQ(vcomcfg[ch].rx_irqn))
 		{
-			pival = vcom_process_input(ch, *rxptr++);
+			pival = vcom_process_input(ch, cdc_data[ch].RxData[cdc_data[ch].session.RxIdx++]);
 			cdc_data[ch].session.prompt_rq |= pival & PIRET_PROMPTRQ;
 		}
-		cdc_data[ch].session.RxLength = 0;
-		cdc_data[ch].session.autonul = 0;
-		cdc_data[ch].session.autonul_timer = (pival & PIRET_AUTONUL) ? AUTONUL_TOUT : 0;
-		allow_rx(ConfigDesc.cdc[ch].cdcdesc.cdcout.bEndpointAddress);
+		if (cdc_data[ch].session.RxIdx == cdc_data[ch].session.RxLength)
+		{
+			cdc_data[ch].session.RxLength = 0;
+			cdc_data[ch].session.autonul = 0;
+			cdc_data[ch].session.autonul_timer = (pival & PIRET_AUTONUL) ? AUTONUL_TOUT : 0;
+			allow_rx(ConfigDesc.cdc[ch].cdcdesc.cdcout.bEndpointAddress);
+		}
+		else
+		{
+			NVIC_SetPendingIRQ(vcomcfg[ch].rx_irqn);
+		}
 	}
-	else if (cdc_data[ch].session.autonul)
+	else if (cdc_data[ch].session.autonul && NVIC_GetEnableIRQ(vcomcfg[ch].rx_irqn))
 	{
 		cdc_data[ch].session.autonul = 0;
 		cdc_data[ch].session.prompt_rq |= vcom_process_input(ch, 0) & PIRET_PROMPTRQ;
 	}
-	if (cdc_data[ch].session.signon_rq)
+
+	if (cdc_data[ch].session.RxLength == 0)
 	{
-		cdc_data[ch].session.signon_rq = 0;
-		vcom_prompt(ch, 1);
-		cdc_data[ch].session.prompt_rq = 1;
-	}
-	if (cdc_data[ch].session.prompt_rq)
-	{
-		cdc_data[ch].session.prompt_rq = 0;
-		vcom_prompt(ch, 0);
+		if (cdc_data[ch].session.signon_rq)
+		{
+			cdc_data[ch].session.signon_rq = 0;
+			vcom_prompt(ch, 1);
+			cdc_data[ch].session.prompt_rq = 1;
+		}
+		if (cdc_data[ch].session.prompt_rq)
+		{
+			cdc_data[ch].session.prompt_rq = 0;
+			vcom_prompt(ch, 0);
+		}
 	}
 }
 
@@ -629,6 +648,13 @@ static void HIDoutHandler(const struct usbdevice_ *usbd, uint8_t epn)
 
 // Application routines ==================================================
 
+static void cdc_rxhandler(uint8_t ch, uint16_t length)
+{
+	cdc_data[ch].session.RxLength = length;
+	cdc_data[ch].session.RxIdx = 0;
+	NVIC_SetPendingIRQ(vcomcfg[ch].rx_irqn);
+}
+
 // called form USB hw interrupt
 void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
 {
@@ -649,18 +675,15 @@ void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
 			{
 #if USBD_CDC_CHANNELS
 			case CDC0_DATA_OUT_EP:
-				cdc_data[0].session.RxLength = length;
-				NVIC_SetPendingIRQ(VCOM0_rx_IRQn);
+				cdc_rxhandler(0, length);
 				break;
 #if USBD_CDC_CHANNELS > 1
 			case CDC1_DATA_OUT_EP:
-				cdc_data[1].session.RxLength = length;
-				NVIC_SetPendingIRQ(VCOM1_rx_IRQn);
+				cdc_rxhandler(1, length);
 				break;
 #if USBD_CDC_CHANNELS > 2
 			case CDC2_DATA_OUT_EP:
-				cdc_data[2].session.RxLength = length;
-				NVIC_SetPendingIRQ(VCOM2_rx_IRQn);
+				cdc_rxhandler(2, length);
 				break;
 #endif	// USBD_CDC_CHANNELS > 2
 #endif	// USBD_CDC_CHANNELS > 1
@@ -668,6 +691,7 @@ void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
 #if USBD_PRINTER
 			case PRN_DATA_OUT_EP:
 				prn_data.RxLength = length;
+				prn_data.RxIdx = 0;
 				NVIC_SetPendingIRQ(PRN_rx_IRQn);
 				break;
 #endif
@@ -678,7 +702,7 @@ void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
 		usbd->hwif->EnableRx(usbd, epn);
 }
 
-// called form USB hw interrupt
+// called from USB hw interrupt
 void DataSentHandler(const struct usbdevice_ *usbd, uint8_t epn)
 {
 	switch (epn)
@@ -912,6 +936,7 @@ static const struct epcfg_ outcfg[USBD_NUM_EPPAIRS] = {
 static const struct epcfg_ incfg[USBD_NUM_EPPAIRS] = {
 	{.ifidx = 0, .handler = 0},
 #if USBD_MSC
+	{.ifidx = IFNUM_MSC, .handler = 0},
 #endif
 #if USBD_CDC_CHANNELS
 	{.ifidx = IFNUM_CDC0_CONTROL, .handler = 0},
@@ -1033,19 +1058,12 @@ void USBapp_Init(void)
 {
 #if USBD_CDC_CHANNELS
 	// Tx interrupts are enabled when the device is connected
-	NVIC_SetPriority(VCOM0_tx_IRQn, USB_IRQ_PRI);
-	NVIC_SetPriority(VCOM0_rx_IRQn, USB_IRQ_PRI + 1);
-	NVIC_EnableIRQ(VCOM0_rx_IRQn);
-#if USBD_CDC_CHANNELS > 1
-	NVIC_SetPriority(VCOM1_tx_IRQn, USB_IRQ_PRI);
-	NVIC_SetPriority(VCOM1_rx_IRQn, USB_IRQ_PRI + 1);
-	NVIC_EnableIRQ(VCOM1_rx_IRQn);
-#if USBD_CDC_CHANNELS > 2
-	NVIC_SetPriority(VCOM2_tx_IRQn, USB_IRQ_PRI);
-	NVIC_SetPriority(VCOM2_rx_IRQn, USB_IRQ_PRI + 1);
-	NVIC_EnableIRQ(VCOM2_rx_IRQn);
-#endif	// USBD_CDC_CHANNELS > 2
-#endif	// USBD_CDC_CHANNELS > 1
+	for (uint8_t i = 0; i < USBD_CDC_CHANNELS; i++)
+	{
+		NVIC_SetPriority(vcomcfg[i].tx_irqn, USB_IRQ_PRI);
+		NVIC_SetPriority(vcomcfg[i].rx_irqn, USB_IRQ_PRI + 1);
+		NVIC_EnableIRQ(vcomcfg[i].rx_irqn);
+	}
 #endif	// USBD_CDC_CHANNELS
 
 #if USBD_PRINTER

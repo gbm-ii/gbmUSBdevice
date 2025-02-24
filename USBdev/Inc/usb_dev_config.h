@@ -25,12 +25,12 @@
 #endif	// SIMPLE_CDC
 
 // synthesize PID from device config
-#define USBD_CFG_PID	((USBD_MSC) | USBD_CDC_CHANNELS << 1 \
-	| (USBD_PRINTER) << 3 | (USBD_HID) << 4 )
+#define USBD_CFG_PID	((USBD_MSC << 3) | USBD_CDC_CHANNELS << 0 \
+	| (USBD_PRINTER) << 4 | (USBD_HID) << 2 )
 
 // Vendor and product ID
-#define	USB_VID	0x25AE
-#define USB_PID	(0x24AB - 6 + USBD_CFG_PID)
+#define	USB_VID	0x6666
+#define USB_PID	(USBD_CFG_PID)
 
 // endpoint sizes
 #define USBD_CTRL_EP_SIZE	64u
