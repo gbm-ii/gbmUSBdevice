@@ -50,10 +50,10 @@ __attribute__ ((weak)) const uint8_t *prn_get_custom_id(void)
  // class-specific Clear EP Stall handler called by usb_dev.c
 void USBclass_ClearEPStall(const struct usbdevice_ *usbd, uint8_t epaddr)
 {
+#if USBD_MSC
 	uint8_t epn = epaddr & EPNUMMSK;
 	uint8_t interface = epaddr & EP_IS_IN ? usbd->cfg->inepcfg[epn].ifidx : usbd->cfg->outepcfg[epn].ifidx;
 	uint8_t classid = usbd->cfg->ifassoc[interface].classid;
-#if USBD_MSC
 	if (classid == USB_CLASS_STORAGE)
 	{
 		msc_bot_reset();
