@@ -35,6 +35,7 @@
 #include "usb_class_hid.h"
 
 #if USBD_MSC
+#include "usb_class_msc_scsi.h"
 uint8_t msc_max_lun = 0;
 #endif
 
@@ -80,22 +81,12 @@ void USBclass_HandleRequest(const struct usbdevice_ *usbd)
 			uint8_t classid = usbd->cfg->ifassoc[interface].classid;
 			switch (classid)
 			{
-#if USBD_MSC
+#if xxUSBD_MSC
 			case USB_CLASS_STORAGE:
 				switch (req->bRequest)
 				{
-				case BOT_GET_MAX_LUN :
-					if (req->wValue == 0 && req->wLength == 1 && (req->bmRequest & 0x80))
-					{
-//						hmsc->max_lun = USBD_Storage_Interface_fops_FS.GetMaxLun();
-						USBdev_SendStatus(usbd, (uint8_t *)&msc_max_lun, 1);
-					}
-					else
-						USBdev_CtrlError(usbpd);
-					break;
-
-				case BOT_RESET :
-					if (req->wValue == 0 && req->wLength == 0 && !(req->bmRequest & 0x80))
+				case BOTRQ_RESET :
+					if (req->wValue.w == 0 && req->wLength == 0 && !req->bmRequestType.DirIn)
 					{
 						msc_bot_reset();
 						USBdev_SendStatusOK(usbd);
@@ -103,6 +94,17 @@ void USBclass_HandleRequest(const struct usbdevice_ *usbd)
 					else
 						USBdev_CtrlError(usbd);// should stall on unhandled requests
 					break;
+
+				case BOTRQ_GET_MAX_LUN :
+					if (req->wValue.w == 0 && req->wLength == 1 && req->bmRequestType.DirIn)
+					{
+//						hmsc->max_lun = USBD_Storage_Interface_fops_FS.GetMaxLun();
+						USBdev_SendStatus(usbd, &msc_max_lun, 1, 0);
+					}
+					else
+						USBdev_CtrlError(usbd);
+					break;
+
 				default:
 					USBdev_CtrlError(usbd);// should stall on unhandled requests
 				}
@@ -245,17 +247,20 @@ void USBclass_HandleRequest(const struct usbdevice_ *usbd)
 			case USB_CLASS_STORAGE:
 				switch (req->bRequest)
 				{
-#if 0
-				case BOT_GET_MAX_LUN :
+#if 1
+				case BOTRQ_GET_MAX_LUN :
 					if(req->wValue.w == 0 && req->wLength == 1 && req->bmRequestType.DirIn)
 						USBdev_SendStatus(usbd, &msc_max_lun, 1, 0);
 					else
 						USBdev_CtrlError(usbd);
 					break;
 
-				case BOT_RESET :
-					if(req->wValue.w == 0 && req->wLength == 0 && req->bmRequestType.DirIn)
-						MSC_BOT_Reset(pdev);
+				case BOTRQ_RESET :
+					if(req->wValue.w == 0 && req->wLength == 0 && !req->bmRequestType.DirIn)
+					{
+						msc_bot_reset();
+						USBdev_SendStatusOK(usbd);
+					}
 					else
 						USBdev_CtrlError(usbd);
 					break;

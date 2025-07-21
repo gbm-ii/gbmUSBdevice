@@ -26,7 +26,7 @@
 #include "usb_std_def.h"
 #include "usb_dev.h"
 #include "usb_hw_if.h"
-#include "usb_desc_gen.h"
+#include "usb_desc_gen.h"	// includes class-specific headers
 #include "usb_log.h"
 #include "usb_app.h"
 
@@ -116,6 +116,9 @@ static _Alignas(USB_SetupPacket) uint8_t ep0outpkt[USBD_CTRL_EP_SIZE];	// Contro
 
 static struct epdata_ out_epdata[USBD_NUM_EPPAIRS] = {
 	{.ptr = ep0outpkt, .count = 0},	// control
+#if USBD_MSC
+	{.ptr = bsdata.outbuf, .count = 0},
+#endif
 #if USBD_CDC_CHANNELS
 	{.ptr = 0, .count = 0},	// unused
 	{.ptr = cdc_data[0].RxData, .count = 0},
@@ -673,6 +676,11 @@ void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
 		{
 			switch (epn)
 			{
+#if USBD_MSC
+			case MSC_BOT_OUT_EP:
+				msc_bot_out(usbd, epn, length);
+				break;
+#endif
 #if USBD_CDC_CHANNELS
 			case CDC0_DATA_OUT_EP:
 				cdc_rxhandler(0, length);
