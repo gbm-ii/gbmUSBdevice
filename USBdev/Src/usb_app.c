@@ -715,6 +715,11 @@ void DataSentHandler(const struct usbdevice_ *usbd, uint8_t epn)
 {
 	switch (epn)
 	{
+#if USBD_MSC
+	case MSC_BOT_IN_EP:
+		msc_bot_in(usbd, epn);
+		break;
+#endif
 #if USBD_CDC_CHANNELS
 	case CDC0_DATA_IN_EP:
 		NVIC_EnableIRQ(VCOM0_tx_IRQn);
@@ -918,7 +923,7 @@ static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc = {
 static const struct epcfg_ outcfg[USBD_NUM_EPPAIRS] = {
 	{.ifidx = 0, .handler = 0},
 #if USBD_MSC
-	{.ifidx = IFNUM_MSC, .handler = 0},	// unused
+	{.ifidx = IFNUM_MSC, .handler = DataReceivedHandler},	// unused
 #endif
 	{.ifidx = IFNUM_CDC0_CONTROL, .handler = 0},	// unused
 	{.ifidx = IFNUM_CDC0_DATA, .handler = DataReceivedHandler},
@@ -944,7 +949,7 @@ static const struct epcfg_ outcfg[USBD_NUM_EPPAIRS] = {
 static const struct epcfg_ incfg[USBD_NUM_EPPAIRS] = {
 	{.ifidx = 0, .handler = 0},
 #if USBD_MSC
-	{.ifidx = IFNUM_MSC, .handler = 0},
+	{.ifidx = IFNUM_MSC, .handler = DataSentHandler},
 #endif
 #if USBD_CDC_CHANNELS
 	{.ifidx = IFNUM_CDC0_CONTROL, .handler = 0},

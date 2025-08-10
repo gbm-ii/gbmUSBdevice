@@ -81,31 +81,35 @@
 
 #define	SCSI_UNMAP	0x42	// gbm
 
-#define NO_SENSE                                    0
-#define RECOVERED_ERROR                             1
-#define NOT_READY                                   2
-#define MEDIUM_ERROR                                3
-#define HARDWARE_ERROR                              4
-#define ILLEGAL_REQUEST                             5
-#define UNIT_ATTENTION                              6
-#define DATA_PROTECT                                7
-#define BLANK_CHECK                                 8
-#define VENDOR_SPECIFIC                             9
-#define COPY_ABORTED                                10
-#define ABORTED_COMMAND                             11
-#define VOLUME_OVERFLOW                             13
-#define MISCOMPARE                                  14
+// sense key codes returned by REQUEST_SENSE
+#define SKEY_NO_SENSE                        0
+//#define RECOVERED_ERROR                             1
+#define SKEY_NOT_READY                                   2
+//#define MEDIUM_ERROR                                3
+//#define HARDWARE_ERROR                              4
+#define SKEY_ILLEGAL_REQUEST                             5
+//#define UNIT_ATTENTION                              6
+//#define DATA_PROTECT                                7
+//#define BLANK_CHECK                                 8
+//#define VENDOR_SPECIFIC                             9
+//#define COPY_ABORTED                                10
+//#define ABORTED_COMMAND                             11
+//#define VOLUME_OVERFLOW                             13
+//#define MISCOMPARE                                  14
 
-#define INVALID_CDB                                 0x20
-#define INVALID_FIELED_IN_COMMAND                   0x24
-#define PARAMETER_LIST_LENGTH_ERROR                 0x1A
-#define INVALID_FIELD_IN_PARAMETER_LIST             0x26
-#define ADDRESS_OUT_OF_RANGE                        0x21
-#define MEDIUM_NOT_PRESENT                          0x3A
-#define MEDIUM_HAVE_CHANGED                         0x28
-#define WRITE_PROTECTED                             0x27 
-#define UNRECOVERED_READ_ERROR			    0x11
-#define WRITE_FAULT				    0x03 
+// ASC codes returned by REQUEST_SENSE
+#define ASC_NO_SENSE                        0
+#define ASC_WRITE_FAULT						0x03
+#define ASC_UNRECOVERED_READ_ERROR			0x11
+#define ASC_PARAMETER_LIST_LENGTH_ERROR		0x1A
+#define ASC_INVALID_CDB						0x20
+#define ASC_LBA_OUT_OF_RANGE                0x21
+#define ASC_INVALID_FIELD_IN_CDB			0x24
+#define ASC_INVALID_FIELD_IN_PARAMETER_LIST	0x26
+#define ASC_MEDIUM_HAVE_CHANGED				0x28
+#define ASC_WRITE_PROTECTED					0x27
+#define ASC_MEDIUM_NOT_PRESENT              0x3A
+
 
 #define READ_FORMAT_CAPACITY_DATA_LEN               0x0C
 #define READ_CAPACITY10_DATA_LEN                    0x08
@@ -120,13 +124,18 @@
 #define	BOTRQ_RESET	0xff
 #define BOTRQ_GET_MAX_LUN	0xfe
 
-#define MSC_DATA_BUF_SIZE	512u
+#define MSC_DATA_BUF_SIZE	512u	// implementation-specific!
 
 #define CBW_SIZE	31u
 #define CSW_SIZE	13u
 
 #define CBW_SIG 0x43425355
 #define CSW_SIG 0x53425355
+
+// error codes returned in CSW
+#define	BOT_CMD_PASSED	0u
+#define	BOT_CMD_FAILED	1u
+#define	BOT_PHASE_ERROR	2u
 
 struct botCBW_ {
 	uint32_t dSignature, dTag, dDataTransferLength;
@@ -145,7 +154,7 @@ struct botCSW_ {
 	uint8_t bStatus;
 };
 
-enum botstate_ {BS_CBW, BS_DATAOUT, BS_DATAIN, BS_CSW, BS_ERROR, BS_RSTRQ};
+enum botstate_ {BS_CBW, BS_DATAOUT, BS_DATAIN, BS_CSW, BS_ERROR, BS_RESET};
 
 struct msc_bot_scsi_data_ {
 	struct botCBW_ cbw;
@@ -161,13 +170,17 @@ struct msc_bot_scsi_data_ {
 	uint8_t databuf[MSC_DATA_BUF_SIZE];
 	uint8_t outbuf[MSC_BOT_EP_SIZE];
 	uint16_t dbidx;
+	bool in_busy;
 };
 
 extern struct msc_bot_scsi_data_ bsdata;
 
 
+void msc_bot_init(const struct usbdevice_ *usbd);
 void msc_bot_reset(void);
 void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len);
+void msc_bot_in(const struct usbdevice_ *usbd, uint8_t epn);
+void msc_bot_ClearEPStall(const struct usbdevice_ *usbd, uint8_t epaddr);
 
 //========================================================================
 

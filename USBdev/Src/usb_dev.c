@@ -203,8 +203,8 @@ static void USBdev_HandleRequest(const struct usbdevice_ *usbd)
 				{
 					usbd->inep[epaddr & EPNUMMSK] = (struct epdata_){0, 0, 0, 0};
 				}
-				USBclass_ClearEPStall(usbd, epaddr);
 				usbd->hwif->ClrEPStall(usbd, epaddr);
+				USBclass_ClearEPStall(usbd, epaddr);
 				USBdev_SendStatusOK(usbd);
 			}
 			else

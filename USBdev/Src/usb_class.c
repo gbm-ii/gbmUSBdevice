@@ -57,7 +57,7 @@ void USBclass_ClearEPStall(const struct usbdevice_ *usbd, uint8_t epaddr)
 	uint8_t classid = usbd->cfg->ifassoc[interface].classid;
 	if (classid == USB_CLASS_STORAGE)
 	{
-		msc_bot_reset();
+		msc_bot_ClearEPStall(usbd, epaddr);
 	}
 #endif
 }
