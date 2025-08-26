@@ -286,6 +286,8 @@ __attribute__ ((weak)) void VCP_ConnStatus(uint8_t ch, bool on)
 
 #endif	// USBD_CDC_CHANNELS
 
+#if USBD_CDC_CHANNELS || USBD_PRINTER
+
 // enable data reception on a specified endpoint - called after received data is processed
 static void allow_rx(uint8_t epn)
 {
@@ -293,6 +295,7 @@ static void allow_rx(uint8_t epn)
 	usbdev.hwif->EnableRx(&usbdev, epn);
 	__enable_irq();
 }
+#endif
 
 #if USBD_PRINTER
 
@@ -650,13 +653,14 @@ static void HIDoutHandler(const struct usbdevice_ *usbd, uint8_t epn)
 
 
 // Application routines ==================================================
-
+#if USBD_CDC_CHANNELS
 static void cdc_rxhandler(uint8_t ch, uint16_t length)
 {
 	cdc_data[ch].session.RxLength = length;
 	cdc_data[ch].session.RxIdx = 0;
 	NVIC_SetPendingIRQ(vcomcfg[ch].rx_irqn);
 }
+#endif
 
 // called form USB hw interrupt
 void DataReceivedHandler(const struct usbdevice_ *usbd, uint8_t epn)
@@ -790,6 +794,9 @@ static const uint8_t * const strdescv[USBD_NSTRINGDESCS] = {
 	&sdVendor.bLength,
 	&sdName.bLength,
 	&sdSerial.bLength,
+#if USBD_MSC
+	&sdMSC.bLength,
+#endif
 #if USBD_CDC_CHANNELS
 	&sdVcom0.bLength,
 #if USBD_CDC_CHANNELS > 1
@@ -925,6 +932,7 @@ static const struct epcfg_ outcfg[USBD_NUM_EPPAIRS] = {
 #if USBD_MSC
 	{.ifidx = IFNUM_MSC, .handler = DataReceivedHandler},	// unused
 #endif
+#if USBD_CDC_CHANNELS
 	{.ifidx = IFNUM_CDC0_CONTROL, .handler = 0},	// unused
 	{.ifidx = IFNUM_CDC0_DATA, .handler = DataReceivedHandler},
 #if USBD_CDC_CHANNELS > 1
@@ -938,7 +946,8 @@ static const struct epcfg_ outcfg[USBD_NUM_EPPAIRS] = {
 #endif
 	{.ifidx = IFNUM_CDC2_DATA, .handler = DataReceivedHandler},
 #endif
-#endif
+#endif	// >1 CDC
+#endif	// any CDC
 #if USBD_PRINTER
 	{.ifidx = IFNUM_PRN, .handler = DataReceivedHandler},
 #endif
@@ -1021,11 +1030,14 @@ static const struct usbdcfg_ usbdcfg = {
 
 static struct usbdevdata_ uddata;	// device data and status
 
+#if USBD_CDC_CHANNELS
+
 static const struct cdc_services_ cdc_service = {
 	.SetLineCoding = 0,
 	.SetControlLineState = cdc_LineStateHandler,
 	// todo: add get status call when implementing notifications
 };
+#endif
 
 #if USBD_PRINTER
 static const struct prn_services_ prn_service = {
@@ -1054,8 +1066,10 @@ const struct usbdevice_ usbdev = {
 	.Resume_Handler = usbdev_resume,
 	.SOF_Handler = usbdev_tick,
 //	.ESOF_Handler = usbdev_notick,
+#if USBD_CDC_CHANNELS
 	.cdc_service = &cdc_service,
 	.cdc_data = cdc_data,
+#endif
 #if USBD_PRINTER
 	.prn_service = &prn_service,
 	.prn_data = &prn_data,
@@ -1069,6 +1083,9 @@ const struct usbdevice_ usbdev = {
 // Init routine to start USB device =================================
 void USBapp_Init(void)
 {
+#if USBD_MSC
+	msc_bot_init(&usbdev);
+#endif
 #if USBD_CDC_CHANNELS
 	// Tx interrupts are enabled when the device is connected
 	for (uint8_t i = 0; i < USBD_CDC_CHANNELS; i++)

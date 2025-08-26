@@ -30,6 +30,9 @@ SCSI minimal command set - documented in
 https://www.usb.org/sites/default/files/usb_msc_boot_1.0.pdf
 
 all basic commands are 12 B long
+
+some remarks:
+https://aidanmocke.com/blog/2020/12/30/USB-MSD-1/
 */
 
 #include <stdint.h>
@@ -38,6 +41,32 @@ all basic commands are 12 B long
 #include "usb_dev.h"
 #include "usb_dev_config.h"
 #include "usb_class_msc_scsi.h"
+#include "usb_hw_if.h"
+
+#if USBD_MSC
+#if 1
+
+enum act_ {A_RQ, A_RESP, A_CSW, A_CLRSTALL, A_RESETRQ};
+
+struct logentry_ {
+	uint8_t action, rq;
+};
+
+#define LOGSIZE 100
+struct logentry_ msclog[LOGSIZE];
+static uint8_t lidx;
+
+static void msc_log(uint8_t action, uint8_t rq)
+{
+	if (lidx < LOGSIZE)
+		msclog[lidx++] = (struct logentry_){ action, rq};
+}
+#else
+static inline void msc_log(uint8_t action, uint8_t rq)
+{
+
+}
+#endif
 
 struct msc_bot_scsi_data_ bsdata;
 
@@ -54,22 +83,25 @@ static inline uint32_t getBE32(const uint8_t *p)
 #define nLUNs 1u
 
 static const uint8_t inquiry_data[36] = {
-		0,	// device type
-		0,	// bit 7 set -> removable media
-		0, 0,
-		0,	// additional length
-		0, 0, 0,	// reserved
+		0,	// device type: 0x00 - SBC Direct-access, 0x0e - RBC simplified direct access
+		0x80,	// bit 7 set -> removable media
+		2,	// ?
+		2,	// response data format
+		sizeof inquiry_data - 5,	// additional length
+		[5] = 0, 0, 0,	// reserved
 		[8] = 'g', 'b', 'm', ' ', ' ', ' ', ' ', ' ',	// vendor ID
 		[16] = 'M', 'a', 's', 's', ' ', 'S', 't', 'o', 'r', 'a', 'g', 'e', ' ', ' ', ' ', ' ',	// product ID
 		[32] = 'A', '0', '0', '0'	// revision level
 };
 
-#define MODE_SENSE6_LEN			 8
+#define MODE_SENSE6_LEN			 4
 #define MODE_SENSE10_LEN		 8
 #define LENGTH_INQUIRY_PAGE00		 7
 #define LENGTH_FORMAT_CAPACITIES    	20
+
+#if 0
 /* USB Mass storage Page 0 Inquiry Data */
-const uint8_t  MSC_Page00_Inquiry_Data[] = {//7
+static const uint8_t  MSC_Page00_Inquiry_Data[] = {//7
 	0x00,
 	0x00,
 	0x00,
@@ -78,9 +110,8 @@ const uint8_t  MSC_Page00_Inquiry_Data[] = {//7
 	0x80,
 	0x83
 };
-
 /* USB Mass storage sense 10  Data */
-const uint8_t  MSC_Mode_Sense10_data[] = {
+static const uint8_t  MSC_Mode_Sense10_data[MODE_SENSE10_LEN] = {
 	0x00,
 	0x06,
 	0x00,
@@ -90,17 +121,13 @@ const uint8_t  MSC_Mode_Sense10_data[] = {
 	0x00,
 	0x00
 };
-
+#endif
 /* USB Mass storage sense 6  Data */
-const uint8_t  MSC_Mode_Sense6_data[] = {
+static const uint8_t  MSC_Mode_Sense6_data[MODE_SENSE6_LEN] = {
+	0x03,
 	0x00,
 	0x00,
 	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00
 };
 
 struct sense_data_ {
@@ -118,22 +145,26 @@ static struct sense_data_ sense_data = {
 		.asl = sizeof(struct sense_data_) - 7
 };
 
-#define NUM_BLOCKS	128u
+#define NUM_BLOCKS	256u
 #define	LAST_LBA	(NUM_BLOCKS - 1u)
 #define BLK_SIZE	512u
 
 #if 1
-alignas (uint32_t) static uint8_t media[NUM_BLOCKS][BLK_SIZE];
+alignas (uint64_t) static uint8_t media[NUM_BLOCKS][BLK_SIZE];
+
+uint32_t blocks_read, blocks_written;
 
 static bool media_write(uint8_t lun, uint32_t blk, const uint8_t *buf)
 {
 	memcpy(media[blk], buf, BLK_SIZE);
+	++blocks_written;
 	return 0;
 }
 
 static bool media_read(uint8_t lun, uint32_t blk, uint8_t *buf)
 {
 	memcpy(buf, media[blk], BLK_SIZE);
+	++blocks_read;
 	return 0;
 }
 #endif
@@ -142,6 +173,15 @@ static const uint8_t read_capacity_data[8] = {
 		LAST_LBA >> 24, LAST_LBA >> 16 & 0xff, LAST_LBA >> 8 & 0xff, LAST_LBA & 0xff,
 		BLK_SIZE >> 24, BLK_SIZE >> 16 & 0xff, BLK_SIZE >> 8 & 0xff, BLK_SIZE & 0xff
 };
+
+// https://www.usb.org/sites/default/files/usbmass-ufi10.pdf
+//static const uint8_t read_format_capacity_data[12] = {
+//		0, 0, 0, 0,
+//		NUM_BLOCKS >> 24, NUM_BLOCKS >> 16 & 0xff, NUM_BLOCKS >> 8 & 0xff, NUM_BLOCKS & 0xff,
+//		//LAST_LBA >> 24, LAST_LBA >> 16 & 0xff, LAST_LBA >> 8 & 0xff, LAST_LBA & 0xff,
+//		2u,	// formatted media
+//		BLK_SIZE >> 16 & 0xff, BLK_SIZE >> 8 & 0xff, BLK_SIZE & 0xff
+//};
 
 // get and verify data transfer parms, return 1 if ok, 0 if incorrect
 static bool getparm10(void)
@@ -159,82 +199,85 @@ static bool getparm10(void)
 			&& bsdata.devTransferLength == bsdata.cbw.dDataTransferLength;
 }
 
-static bool chkparm(void)
-{
-	return 0;
-}
-
 // bitmap for SCSI commands recording
 volatile uint8_t rq[32];
 
 static void enable_out_ep(const struct usbdevice_ *usbd)
 {
-
+	usbd->hwif->EnableRx(usbd, MSC_BOT_OUT_EP);
 }
 
 static void prepare_for_cbw(const struct usbdevice_ *usbd)
 {
-	;
+	enable_out_ep(usbd);
+	bsdata.state = BS_CBW;
 }
 
 void msc_bot_init(const struct usbdevice_ *usbd)
 {
 	bsdata = (struct msc_bot_scsi_data_){0};
-	// enable out ep
+	enable_out_ep(usbd);
 }
 
 void msc_bot_reset(void)
 {
+	msc_log(A_RESETRQ, 0);
 	// does not change data toggle nor ep stalls
 //	bsdata.state = BS_CBW;
 	bsdata.state = BS_RESET;
 	// allow receive
 }
 
+static void bot_send_csw(const struct usbdevice_ *usbd)
+{
+	msc_log(A_CSW, bsdata.csw.bStatus);
+	USBdev_SendData(usbd, MSC_BOT_IN_EP, (const uint8_t *)&bsdata.csw, CSW_SIZE, 0);
+	prepare_for_cbw(usbd);
+}
+
 void msc_bot_ClearEPStall(const struct usbdevice_ *usbd, uint8_t epaddr)
 {
-	if (bsdata.state == BS_ERROR)
+	msc_log(A_CLRSTALL, epaddr);
+	if (bsdata.state == BS_INVCBW)
 	{
 		// stall IN
+		usbd->hwif->SetEPStall(usbd, epaddr | 0x80);
 		bsdata.state = BS_CBW;
 	}
 	else if ((epaddr & 0x80) && bsdata.state != BS_RESET)
 	{
 		// send failed command CSW
+		bot_send_csw(usbd);
 	}
 }
 
 static void msc_bot_abort(const struct usbdevice_ *usbd)
 {
-	if (bsdata.cbw.bmFlags.b == 0 && bsdata.cbw.dDataTransferLength && bsdata.state < BS_ERROR)
+	if (bsdata.cbw.bmFlags.b == 0 && bsdata.cbw.dDataTransferLength && bsdata.state < BS_INVCBW)
 	{
-		// stall out
+		// CBW valid, host-to-device transfer may be expected, so stall out
+		usbd->hwif->SetEPStall(usbd, MSC_BOT_OUT_EP);
 	}
-	// stall in
 
-	if (bsdata.state == BS_ERROR)
+	if (1)
 	{
-		// allow receive
+		// stall in
+		usbd->hwif->SetEPStall(usbd, MSC_BOT_IN_EP);
+	}
+
+	if (bsdata.state == BS_INVCBW)
+	{
+		enable_out_ep(usbd);		// allow receive
 	}
 
 }
 
-static void msc_scsi_sense(uint8_t lun, uint8_t erc)
-{
-	;
-}
 		//SCSI_SENSE_ILLEGAL_REQUEST, INVALID_CDB, 0)
 
 static void scsi_error(uint8_t sKey, uint8_t ASC)
 {
 	sense_data.sense_key = sKey;
 	sense_data.asc = ASC;
-}
-
-static void bot_send_csw(const struct usbdevice_ *usbd)
-{
-	USBdev_SendData(usbd, MSC_BOT_IN_EP, (const uint8_t *)&bsdata.csw, CSW_SIZE, 0);
-	bsdata.state = BS_CBW;
 }
 
 // send packet of data read from mass storage device
@@ -247,15 +290,15 @@ static void scsi_read_xfer(const struct usbdevice_ *usbd)
 	}
 	uint16_t txlen = bsdata.devTransferLength < MSC_BOT_EP_SIZE
 			? bsdata.devTransferLength : MSC_BOT_EP_SIZE;
-	USBdev_SendData(usbd, MSC_BOT_IN_EP, bsdata.txptr, txlen, 0);
+	USBdev_SendData(usbd, MSC_BOT_IN_EP, &bsdata.databuf[bsdata.dbidx], txlen, 0);
 	bsdata.dbidx += txlen;
-	bsdata.devTransferLength -= txlen;
 	if (bsdata.dbidx == MSC_DATA_BUF_SIZE)
 	{
 		bsdata.dbidx = 0;
 		++bsdata.scsi_blkaddr;
 		--bsdata.scsi_nblocks;
 	}
+	bsdata.devTransferLength -= txlen;
 	if (bsdata.devTransferLength == 0)
 	{
 		bsdata.state = BS_CSW;
@@ -273,6 +316,8 @@ static void scsi_resp_xfer(const struct usbdevice_ *usbd, const uint8_t *data, u
 		uint16_t txlen = bsdata.devTransferLength < MSC_BOT_EP_SIZE
 				? bsdata.devTransferLength : MSC_BOT_EP_SIZE;
 		USBdev_SendData(usbd, MSC_BOT_IN_EP, bsdata.txptr, txlen, 0);
+		msc_log(A_RESP, txlen);
+
 		bsdata.state = BS_CSW;
 	}
 	else
@@ -281,6 +326,13 @@ static void scsi_resp_xfer(const struct usbdevice_ *usbd, const uint8_t *data, u
 		scsi_error(SKEY_ILLEGAL_REQUEST, ASC_INVALID_CDB);
 	}
 }
+
+static void scsi_bad_command(const struct usbdevice_ *usbd)
+{
+	scsi_error(SKEY_ILLEGAL_REQUEST, ASC_INVALID_CDB);
+	msc_bot_abort(usbd);
+}
+
 
 void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 {
@@ -300,6 +352,7 @@ void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 				&& bsdata.cbw.bCBLength > 0 && bsdata.cbw.bCBLength <= 16)
 			{
 				// CBW meaningful
+				msc_log(A_RQ, bsdata.cbw.CB[0]);
 				//uint8_t sLUN = bsdata.cbw.CB[1] >> 5;
 				bsdata.devTransferLength = 0;
 				bsdata.csw.bStatus = BOT_CMD_PASSED;
@@ -308,8 +361,61 @@ void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 
 				switch (bsdata.cbw.CB[0])
 				{
+				case SCSI_TEST_UNIT_READY:	// just return GOOD status
+					if (bsdata.cbw.dDataTransferLength == 0)
+					{
+						bot_send_csw(usbd);
+					}
+					else
+					{
+						scsi_bad_command(usbd);
+					}
+					break;
+
+				case SCSI_REQUEST_SENSE:	// required if error may be reported
+					bsdata.devTransferLength = bsdata.cbw.CB[4];
+					if (bsdata.devTransferLength > 18)
+						bsdata.devTransferLength = 18;
+					scsi_resp_xfer(usbd, (const uint8_t *)&sense_data, sizeof sense_data);
+					sense_data.sense_key = SKEY_NO_SENSE;
+					sense_data.asc = ASC_NO_SENSE;
+					break;
+
 				case SCSI_INQUIRY:	// return 36 B of Inq info
-					scsi_resp_xfer(usbd, inquiry_data, sizeof inquiry_data);
+					if (bsdata.cbw.CB[1] & 1)
+					{
+						// Evpd bit set - should return Page00
+						scsi_bad_command(usbd);
+					}
+					else
+					{
+						scsi_resp_xfer(usbd, inquiry_data, sizeof inquiry_data);
+					}
+					break;
+
+				case SCSI_MODE_SENSE6:	// not required according to https://docs.silabs.com/protocol-usb/1.2.0/protocol-usb-msc-scsi/
+					// FDMP support required - not implemented
+					scsi_resp_xfer(usbd, (const uint8_t *)&MSC_Mode_Sense6_data, sizeof MSC_Mode_Sense6_data);
+					break;
+
+				case SCSI_ALLOW_MEDIUM_REMOVAL:
+					if (bsdata.cbw.dDataTransferLength == 0)
+					{
+						bsdata.prevent_removal = bsdata.cbw.CB[4] & 1;
+						bot_send_csw(usbd);
+					}
+					else
+					{
+						scsi_bad_command(usbd);
+					}
+					break;
+
+//				case SCSI_READ_FORMAT_CAPACITIES:
+//					scsi_resp_xfer(usbd, read_format_capacity_data, sizeof read_format_capacity_data);
+//					break;
+
+				case SCSI_READ_CAPACITY10:	// return 8 B: lastLBA, block size (32-bit BE)
+					scsi_resp_xfer(usbd, read_capacity_data, sizeof read_capacity_data);
 					break;
 
 				case SCSI_READ10:
@@ -323,43 +429,8 @@ void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 					else
 					{
 						// bad parameters
-						scsi_error(SKEY_ILLEGAL_REQUEST, ASC_INVALID_CDB);
+						scsi_bad_command(usbd);
 					}
-					break;
-
-				case SCSI_REQUEST_SENSE:	// required if error may be reported
-					bsdata.devTransferLength = bsdata.cbw.CB[4];
-					if (bsdata.devTransferLength > 18)
-						bsdata.devTransferLength = 18;
-					scsi_resp_xfer(usbd, (const uint8_t *)&sense_data, sizeof sense_data);
-					sense_data.sense_key = SKEY_NO_SENSE;
-					sense_data.asc = ASC_NO_SENSE;
-					break;
-
-				case SCSI_TEST_UNIT_READY:	// just return GOOD status
-					if (bsdata.cbw.dDataTransferLength == 0)
-					{
-						bot_send_csw(usbd);
-					}
-					else
-					{
-						scsi_error(SKEY_ILLEGAL_REQUEST, ASC_INVALID_CDB);
-					}
-					break;
-#if 0
-				case SCSI_MODE_SENSE10:	// not required according to https://docs.silabs.com/protocol-usb/1.2.0/protocol-usb-msc-scsi/
-					// FDMP support required - not implemented
-					scsi_resp_xfer(usbd, (const uint8_t *)&MSC_Mode_Sense10_data,
-							bsdata.cbw.CB[4] < sizeof MSC_Mode_Sense10_data ? bsdata.cbw.CB[4] : sizeof MSC_Mode_Sense10_data);
-					break;
-#endif
-				case SCSI_MODE_SENSE6:	// not required according to https://docs.silabs.com/protocol-usb/1.2.0/protocol-usb-msc-scsi/
-					// FDMP support required - not implemented
-					scsi_resp_xfer(usbd, (const uint8_t *)&MSC_Mode_Sense6_data, sizeof MSC_Mode_Sense6_data);
-					break;
-
-				case SCSI_READ_CAPACITY10:	// return 8 B: lastLBA, block size (32-bit BE)
-					scsi_resp_xfer(usbd, read_capacity_data, sizeof read_capacity_data);
 					break;
 
 				case SCSI_WRITE10:
@@ -367,23 +438,34 @@ void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 					{
 						// command ok
 						bsdata.state = BS_DATAOUT;
+						enable_out_ep(usbd);
 					}
 					else
 					{
 						// bad parameters
-						scsi_error(SKEY_ILLEGAL_REQUEST, ASC_INVALID_CDB);
+						scsi_bad_command(usbd);
 					}
 					break;
+
+#if 0
+				case SCSI_MODE_SENSE10:	// not required according to https://docs.silabs.com/protocol-usb/1.2.0/protocol-usb-msc-scsi/
+					// FDMP support required - not implemented
+					scsi_resp_xfer(usbd, (const uint8_t *)&MSC_Mode_Sense10_data,
+							bsdata.cbw.CB[4] < sizeof MSC_Mode_Sense10_data ? bsdata.cbw.CB[4] : sizeof MSC_Mode_Sense10_data);
+					break;
+#endif
 
 				default:
 					if (bsdata.cbw.dDataTransferLength == 0)
 					{
-						// send bad command csw
+						// invalid command with no data - send bad command CSW
+						bsdata.csw.bStatus = BOT_CMD_FAILED;
+						bot_send_csw(usbd);
 					}
 					else
 					{
-						scsi_error(SKEY_ILLEGAL_REQUEST, ASC_INVALID_CDB);
-						// abort
+						// invalid command with data transfer
+						scsi_bad_command(usbd);
 					}
 				}
 			}
@@ -391,15 +473,15 @@ void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 			{
 				// CBW not meaningful
 				bsdata.csw.bStatus = BOT_CMD_FAILED;
-
-				scsi_error(SKEY_ILLEGAL_REQUEST, ASC_INVALID_CDB);
+				scsi_bad_command(usbd);
 			}
 		}
 		else
 		{
 			// CBW not valid
 			// stall In, stall Out
-			bsdata.state = BS_ERROR;
+			bsdata.state = BS_INVCBW;
+			msc_bot_abort(usbd);
 		}
 		break;
 
@@ -419,8 +501,16 @@ void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 				++bsdata.scsi_blkaddr;
 				if (--bsdata.scsi_nblocks == 0)
 				{
-					bsdata.state = BS_CSW;
+					bot_send_csw(usbd);
 				}
+				else
+				{
+					enable_out_ep(usbd);
+				}
+			}
+			else
+			{
+				enable_out_ep(usbd);
 			}
 			break;
 
@@ -431,6 +521,8 @@ void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 		break;
 
 	default:	// phase error
+		bsdata.csw.bStatus = BOT_PHASE_ERROR;
+		bot_send_csw(usbd);
 	}
 }
 
@@ -451,3 +543,4 @@ void msc_bot_in(const struct usbdevice_ *usbd, uint8_t epn)
 	}
 }
 
+#endif

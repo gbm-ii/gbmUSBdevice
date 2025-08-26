@@ -80,7 +80,7 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
 	usbg->GRSTCTL |= USB_OTG_GRSTCTL_CSRST;
 	while (usbg->GRSTCTL & USB_OTG_GRSTCTL_CSRST) ;
 	while ((usbg->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL) == 0U);
-//	usbg->GCCFG |= USB_OTG_GCCFG_PWRDWN;	// power up phy
+//	moved down usbg->GCCFG |= USB_OTG_GCCFG_PWRDWN;	// power up phy
 	// L4x6 RefMan 47.16.1
 //	usbg->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT_Msk | 6 << USB_OTG_GUSBCFG_TRDT_Pos;
 #ifdef RCC_AHB2ENR1_OTGHSPHYEN
