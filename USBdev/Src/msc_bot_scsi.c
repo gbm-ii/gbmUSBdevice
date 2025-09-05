@@ -1,5 +1,5 @@
 /*
-MSC requests:
+MSC requests (implemented in usb_class.c):
 - reset
 - get max LUN
 
@@ -8,23 +8,18 @@ https://www.usb.org/sites/default/files/usbmassbulk_10.pdf
 
 Packet flow:
 h->d	CBW
-h->d or d->h Data out/in
+h->d or d->h Data out/in, only if cbw.dDataTransferLength != 0
 d->h	CSW
 
 CBW
-31 bytes
+31 bytes, always sent as 31-byte packet
 3 * 4 B + 3 B + CBWCB
 include 15 B header and 1..16 B CBWCB
-always sent as 31-byte packet
 header - little-endian ordering, long fields are size-aligned
+CBWCB - big endian, no size-alignment
 
 CSW
 13 B, 3*4 B + 1B
-
-BOT states
-start - ready for CBW
-CBW_ok
-
 
 SCSI minimal command set - documented in
 https://www.usb.org/sites/default/files/usb_msc_boot_1.0.pdf
@@ -45,6 +40,45 @@ https://aidanmocke.com/blog/2020/12/30/USB-MSD-1/
 
 #if USBD_MSC
 #if 1
+// custom implementation of mass storage media
+#include "mini_msd.h"
+#define NUM_BLOCKS	SECCOUNT
+#define	LAST_LBA	(NUM_BLOCKS - 1u)
+#define BLK_SIZE	SECSIZE
+
+#else
+// demo - non-formatted mass storage in RAM; must be at least 64 KiB to be recognized by Windows
+#define SECSIZE	512u
+#define SECCOUNT	256u	// Works under Win7 if 16 or above
+
+#define NUM_BLOCKS	SECCOUNT
+#define	LAST_LBA	(NUM_BLOCKS - 1u)
+#define BLK_SIZE	SECSIZE
+
+alignas (uint64_t) static uint8_t media[NUM_BLOCKS][BLK_SIZE];
+
+uint32_t blocks_read, blocks_written;
+
+static bool media_write(uint8_t lun, uint32_t blk, const uint8_t *buf)
+{
+	memcpy(media[blk], buf, BLK_SIZE);
+	++blocks_written;
+	return 0;
+}
+
+static bool media_read(uint8_t lun, uint32_t blk, uint8_t *buf)
+{
+	memcpy(buf, media[blk], BLK_SIZE);
+	++blocks_read;
+	return 0;
+}
+
+static void media_init(void)
+{
+}
+#endif
+
+#ifdef MSC_LOG
 
 enum act_ {A_RQ, A_RESP, A_CSW, A_CLRSTALL, A_RESETRQ};
 
@@ -62,10 +96,7 @@ static void msc_log(uint8_t action, uint8_t rq)
 		msclog[lidx++] = (struct logentry_){ action, rq};
 }
 #else
-static inline void msc_log(uint8_t action, uint8_t rq)
-{
-
-}
+#define msc_log(a, v)
 #endif
 
 struct msc_bot_scsi_data_ bsdata;
@@ -84,7 +115,7 @@ static inline uint32_t getBE32(const uint8_t *p)
 
 static const uint8_t inquiry_data[36] = {
 		0,	// device type: 0x00 - SBC Direct-access, 0x0e - RBC simplified direct access
-		0x80,	// bit 7 set -> removable media
+		0x00,	// bit 7 set -> removable media (required for formatting under Windows)
 		2,	// ?
 		2,	// response data format
 		sizeof inquiry_data - 5,	// additional length
@@ -145,30 +176,6 @@ static struct sense_data_ sense_data = {
 		.asl = sizeof(struct sense_data_) - 7
 };
 
-#define NUM_BLOCKS	256u
-#define	LAST_LBA	(NUM_BLOCKS - 1u)
-#define BLK_SIZE	512u
-
-#if 1
-alignas (uint64_t) static uint8_t media[NUM_BLOCKS][BLK_SIZE];
-
-uint32_t blocks_read, blocks_written;
-
-static bool media_write(uint8_t lun, uint32_t blk, const uint8_t *buf)
-{
-	memcpy(media[blk], buf, BLK_SIZE);
-	++blocks_written;
-	return 0;
-}
-
-static bool media_read(uint8_t lun, uint32_t blk, uint8_t *buf)
-{
-	memcpy(buf, media[blk], BLK_SIZE);
-	++blocks_read;
-	return 0;
-}
-#endif
-
 static const uint8_t read_capacity_data[8] = {
 		LAST_LBA >> 24, LAST_LBA >> 16 & 0xff, LAST_LBA >> 8 & 0xff, LAST_LBA & 0xff,
 		BLK_SIZE >> 24, BLK_SIZE >> 16 & 0xff, BLK_SIZE >> 8 & 0xff, BLK_SIZE & 0xff
@@ -215,6 +222,7 @@ static void prepare_for_cbw(const struct usbdevice_ *usbd)
 
 void msc_bot_init(const struct usbdevice_ *usbd)
 {
+	media_init();
 	bsdata = (struct msc_bot_scsi_data_){0};
 	enable_out_ep(usbd);
 }
@@ -311,6 +319,8 @@ static void scsi_resp_xfer(const struct usbdevice_ *usbd, const uint8_t *data, u
 	if (bsdata.cbw.bmFlags.DirIn)
 	{
 		bsdata.txptr = data;
+		if (bsdata.cbw.dDataTransferLength < len)
+			len = bsdata.cbw.dDataTransferLength;
 		bsdata.devTransferLength = len;
 		// TODO: support response > ep_size
 		uint16_t txlen = bsdata.devTransferLength < MSC_BOT_EP_SIZE
@@ -410,7 +420,7 @@ void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 					}
 					break;
 
-//				case SCSI_READ_FORMAT_CAPACITIES:
+//				case SCSI_READ_FORMAT_CAPACITIES:	// not needed - READ_CAPACITY is enough
 //					scsi_resp_xfer(usbd, read_format_capacity_data, sizeof read_format_capacity_data);
 //					break;
 
@@ -448,7 +458,9 @@ void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 					break;
 
 #if 0
-				case SCSI_MODE_SENSE10:	// not required according to https://docs.silabs.com/protocol-usb/1.2.0/protocol-usb-msc-scsi/
+				case SCSI_MODE_SENSE10:
+					// not required according to https://docs.silabs.com/protocol-usb/1.2.0/protocol-usb-msc-scsi/
+					// not used by Win11
 					// FDMP support required - not implemented
 					scsi_resp_xfer(usbd, (const uint8_t *)&MSC_Mode_Sense10_data,
 							bsdata.cbw.CB[4] < sizeof MSC_Mode_Sense10_data ? bsdata.cbw.CB[4] : sizeof MSC_Mode_Sense10_data);
@@ -488,10 +500,6 @@ void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 	case BS_DATAOUT:	// data to be written to a device
 		switch (len)
 		{
-		case 0:	// zlp
-			bsdata.state = BS_CSW;
-			break;
-
 		case MSC_BOT_EP_SIZE: // full packet, process write
 			memcpy(&bsdata.databuf[bsdata.dbidx], bsdata.outbuf, MSC_BOT_EP_SIZE);
 			if ((bsdata.dbidx += MSC_BOT_EP_SIZE) == MSC_DATA_BUF_SIZE)
@@ -514,8 +522,8 @@ void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 			}
 			break;
 
-		default:	// incomplete packet
-			//bsdata.state = ;
+		default:	// zlp or incomplete packet
+			bsdata.state = BS_CSW;
 			break;
 		}
 		break;
