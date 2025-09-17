@@ -128,7 +128,7 @@ static const uint8_t inquiry_data[36] = {
 #define MODE_SENSE6_LEN			 4
 #define MODE_SENSE10_LEN		 8
 #define LENGTH_INQUIRY_PAGE00		 7
-#define LENGTH_FORMAT_CAPACITIES    	20
+//#define LENGTH_FORMAT_CAPACITIES    	20
 
 #if 0
 /* USB Mass storage Page 0 Inquiry Data */
@@ -153,6 +153,7 @@ static const uint8_t  MSC_Mode_Sense10_data[MODE_SENSE10_LEN] = {
 	0x00
 };
 #endif
+#ifdef IMPLEMENT_MODE_SENSE6
 /* USB Mass storage sense 6  Data */
 static const uint8_t  MSC_Mode_Sense6_data[MODE_SENSE6_LEN] = {
 	0x03,
@@ -160,7 +161,7 @@ static const uint8_t  MSC_Mode_Sense6_data[MODE_SENSE6_LEN] = {
 	0x00,
 	0x00,
 };
-
+#endif
 struct sense_data_ {
 	uint8_t error_code, segment_number, sense_key,
 		inf[4],	// 3..6
@@ -356,10 +357,13 @@ void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 			// CBW valid
 			bsdata.csw.dTag = bsdata.cbw.dTag;
 			bsdata.csw.dDataResidue = 0;
+
+			uint8_t CBlun = bsdata.cbw.CB[1] >> 5;	// LUN from CB
 			// check if CBW meaningful
 			if ((bsdata.cbw.bmFlags.b0_6) == 0
 				&& bsdata.cbw.bLUN < nLUNs
-				&& bsdata.cbw.bCBLength > 0 && bsdata.cbw.bCBLength <= 16)
+				&& bsdata.cbw.bCBLength > 0 && bsdata.cbw.bCBLength <= 16
+				&& bsdata.cbw.bLUN == CBlun)
 			{
 				// CBW meaningful
 				msc_log(A_RQ, bsdata.cbw.CB[0]);
@@ -403,10 +407,12 @@ void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 					}
 					break;
 
+#ifdef IMPLEMENT_MODE_SENSE6
 				case SCSI_MODE_SENSE6:	// not required according to https://docs.silabs.com/protocol-usb/1.2.0/protocol-usb-msc-scsi/
 					// FDMP support required - not implemented
 					scsi_resp_xfer(usbd, (const uint8_t *)&MSC_Mode_Sense6_data, sizeof MSC_Mode_Sense6_data);
 					break;
+#endif
 
 				case SCSI_ALLOW_MEDIUM_REMOVAL:
 					if (bsdata.cbw.dDataTransferLength == 0)

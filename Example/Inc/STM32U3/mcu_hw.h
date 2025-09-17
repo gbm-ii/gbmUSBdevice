@@ -130,6 +130,7 @@ static inline void USBhwSetup(void)
 	BF2F(GPIOA->MODER, 11) = GPIO_MODER_AF;
 	BF2F(GPIOA->MODER, 12) = GPIO_MODER_AF;
 #endif
+
 }
 
 // board LED/Button setup needed for HID demo
