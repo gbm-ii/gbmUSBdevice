@@ -393,14 +393,11 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         return;
     }
 
-    if (istr & USB_ISTR_SOF)
+	if (istr & USB_ISTR_SOF)
 	{
-        if (istr & USB_ISTR_SOF)
-    	{
-            usb->ISTR.v = (uint16_t)~USB_ISTR_SOF;
-            if (usbd->SOF_Handler)
-            	usbd->SOF_Handler();
-        }
+		usb->ISTR.v = (uint16_t)~USB_ISTR_SOF;
+		if (usbd->SOF_Handler)
+			usbd->SOF_Handler();
     }
 }
 
