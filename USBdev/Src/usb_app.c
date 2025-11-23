@@ -811,6 +811,10 @@ static const uint8_t * const strdescv[USBD_NSTRINGDESCS] = {
 #endif
 };
 
+#ifndef USBD_SUPPLY_CURRENT_mA
+#define USBD_SUPPLY_CURRENT_mA	100u
+#endif
+
 #define SINGLE_CDC (USBD_CDC_CHANNELS == 1 && (USBD_MSC + USBD_PRINTER + USBD_HID == 0))
 #if SINGLE_CDC
 // device descriptor for single function CDC ACM
@@ -867,6 +871,7 @@ static const struct USBdesc_device_ DevDesc = {
 	.iSerialNumber = USBD_SIDX_SERIALNUM,
 	.bNumConfigurations = 1
 };
+
 static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc = {
 	.cfgdesc = {
 		.bLength = sizeof(struct USBdesc_config_),
@@ -876,7 +881,7 @@ static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc = {
 		.bConfigurationValue = 1,
 		.iConfiguration = 0,
 		.bmAttributes = USB_CONFIGD_BUS_POWERED,
-		.bMaxPower = USB_CONFIGD_POWER_mA(100)
+		.bMaxPower = USB_CONFIGD_POWER_mA(USBD_SUPPLY_CURRENT_mA)
 	},
 #if USBD_MSC
 	.msc = MSCBOTSCSIDESC(IFNUM_MSC, MSC_BOT_IN_EP, MSC_BOT_OUT_EP, USBD_SIDX_FUN_MSC),

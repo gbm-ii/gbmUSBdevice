@@ -88,15 +88,6 @@ static inline void ClockSetup(void)
 	//while ((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_PLL);
 }
 
-static inline void noHAL_Delay(uint8_t ms)
-{
-	SysTick->LOAD = HCLK_FREQ / 1000u * ms - 1u;
-	SysTick->VAL = 0;
-	SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk;
-	while (SysTick) ;
-	SysTick->CTRL = 0;
-}
-
 // USB peripheral enable & pin configuration
 static inline void USBhwSetup(void)
 {

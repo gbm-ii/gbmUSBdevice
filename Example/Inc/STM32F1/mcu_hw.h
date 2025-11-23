@@ -58,11 +58,7 @@ static inline void ClockSetup(void)
 
 static inline void noHAL_Delay(uint8_t ms)
 {
-	SysTick->LOAD = HCLK_FREQ / 1000u * ms - 1u;
-	SysTick->VAL = 0;
-	SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk;
-	while (~SysTick->CTRL & SysTick_CTRL_COUNTFLAG_Msk) ;
-	SysTick->CTRL = 0;
+	SysTick_Delay(HCLK_FREQ / 1000u * ms);
 }
 
 // USB peripheral enable & pin configuration
