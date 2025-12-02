@@ -92,7 +92,7 @@ extern const struct USBhw_services_ g0_fs_services;
 
 #define USB_PMA_OFFSET ((USB_DRD_PMAADDR) - (USB_DRD_BASE))
 
-#elif defined(STM32H503xx) || defined(STM32H533xx) || defined(STM32H563xx)
+#elif defined(STM32H503xx) || defined(STM32H523xx) || defined(STM32H533xx) || defined(STM32H563xx)
 #include "stm32h5xx.h"
 // like G0B1
 #define USB_NEPPAIRS	8u	// no. of endpoint pairs supported by hardware

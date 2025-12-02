@@ -21,7 +21,10 @@
 
 #include "stm32h5yy.h"
 #include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
-#include "boards/stm32nucleo64.h"
+#if __has_include("board.h")
+	#include "board.h"
+#endif
+//#include "boards/stm32nucleo64.h"		// from github.com/gbm-ii/STM32_Inc
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
@@ -91,7 +94,7 @@ static inline void USBhwSetup(void)
 #endif
 	RCC->APB2ENR |= RCC_APB2ENR_USBEN;
 
-	// no need to setup GPIOA
+	// no need to setup GPIOA, it is enough to activate USB
 }
 
 // board LED/Button setup needed for HID demo

@@ -1,6 +1,6 @@
 /* 
  * lightweight USB device stack by gbm
- * usb_hw_g0.c - STM32G0, STM32H50x, STM32U53x/54x USB device/host peripheral hardware access
+ * usb_hw_g0.c - STM32C0, STM32G0, STM32H5xx, STM32U53x/54x USB device/host peripheral hardware access
  * Copyright (c) 2022..2024 gbm
  * 
  * This program is free software: you can redistribute it and/or modify  
@@ -16,13 +16,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #if defined(STM32G0B1xx) \
-	|| defined(STM32H503xx) || defined(STM32H533xx) || defined(STM32H563xx) \
+	|| defined(STM32H503xx) || defined(STM32H523xx) || defined(STM32H533xx) \
+	|| defined(STM32H562xx) || defined(STM32H563xx) \
 	|| defined(STM32U535xx) || defined(STM32U545xx) \
 	|| defined(STM32U073xx) || defined(STM32U083xx) || defined(STM32C071xx)
 
 #ifdef STM32G0B1xx
 #include "stm32g0xx.h"
-#elif defined(STM32H503xx) || defined(STM32H533xx) || defined(STM32H563xx)
+#elif defined(STM32H503xx) || defined(STM32H523xx) || defined(STM32H533xx) \
+	|| defined(STM32H562xx) || defined(STM32H563xx)
 #include "stm32h5xx.h"
 #elif defined(STM32U535xx) || defined(STM32U545xx)
 #include "stm32u5xx.h"
