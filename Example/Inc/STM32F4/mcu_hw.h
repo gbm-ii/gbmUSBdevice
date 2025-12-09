@@ -22,6 +22,10 @@
 #include <stdbool.h>
 #include "stm32f4yy.h"
 #include "bf_reg.h"
+#if __has_include("board.h")
+	#include "board.h"
+	// If board.h is present, HSE_VALUE and RCC_CR_HSESEL must be defined in board.h.
+#else
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
@@ -62,6 +66,7 @@
 #else
 #error Board type not defined!
 #endif
+#endif
 
 #define LED_MSK	(1u << LED_BIT)
 
@@ -71,6 +76,7 @@
 // minimal clock setup required for USB device operation
 static inline void ClockSetup(void)
 {
+	// after reset VOS in PWR->CR is set for 84 MHz operation in F401
 	RCC->CR |= RCC_CR_HSESEL;
 	while (!(RCC->CR & RCC_CR_HSERDY));
 	RCC->PLLCFGR = (RCC->PLLCFGR & RCC_PLLCFGR_RSVD)
@@ -91,8 +97,6 @@ static inline void ClockSetup(void)
 // USB peripheral enable & pin configuration
 static inline void USBhwSetup(void)
 {
-//	RCC->APB1ENR1 |= RCC_APB1ENR1_PWREN;
-//	PWR->CR2 |= PWR_CR2_USV | PWR_CR2_IOSV;	// enable VddUSB
 	RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
 	RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
 
@@ -105,17 +109,27 @@ static inline void USBhwSetup(void)
 }
 
 // board LED/Button setup needed for HID demo
-static inline void LED_Btn_Setup(void)
+static inline void LED_Setup(void)
 {
 #ifdef LED_PORT
 	RCC->IOENR |= RCC_IOENR_GPIOEN(LED_PORT);
 	BF2F(LED_PORT->MODER, LED_BIT) = GPIO_MODER_OUT;
 #endif
+}
+
+static inline void Btn_Setup(void)
+{
 #ifdef BTN_PORT
 	RCC->IOENR |= RCC_IOENR_GPIOEN(BTN_PORT);
-	BF2F(BTN_PORT->PUPDR, BTN_BIT) = GPIO_PUPDR_PU;
+	BF2F(BTN_PORT->PUPDR, BTN_BIT) = BTN_PULL;
 	BF2F(BTN_PORT->MODER, BTN_BIT) = GPIO_MODER_IN;
 #endif
+}
+
+static inline void LED_Btn_Setup(void)
+{
+	LED_Setup();
+	Btn_Setup();
 }
 
 static inline void hwLED_Set(bool on)

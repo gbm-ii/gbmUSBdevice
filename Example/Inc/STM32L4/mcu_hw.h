@@ -116,17 +116,27 @@ static inline void USBhwSetup(void)
 }
 
 // board LED/Button setup needed for HID demo
-static inline void LED_Btn_Setup(void)
+static inline void LED_Setup(void)
 {
 #ifdef LED_PORT
 	RCC->IOENR |= RCC_IOENR_GPIOEN(LED_PORT);
 	BF2F(LED_PORT->MODER, LED_BIT) = GPIO_MODER_OUT;
 #endif
+}
+
+static inline void Btn_Setup(void)
+{
 #ifdef BTN_PORT
 	RCC->IOENR |= RCC_IOENR_GPIOEN(BTN_PORT);
-	BF2F(BTN_PORT->PUPDR, BTN_BIT) = GPIO_PUPDR_PD;
+	BF2F(BTN_PORT->PUPDR, BTN_BIT) = BTN_PULL;
 	BF2F(BTN_PORT->MODER, BTN_BIT) = GPIO_MODER_IN;
 #endif
+}
+
+static inline void LED_Btn_Setup(void)
+{
+	LED_Setup();
+	Btn_Setup();
 }
 
 static inline void hwLED_Set(bool on)

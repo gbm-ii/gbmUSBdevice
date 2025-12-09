@@ -77,17 +77,27 @@ static inline void USBhwSetup(void)
 }
 
 // board LED/Button setup needed for HID demo
-static inline void LED_Btn_Setup(void)
+static inline void LED_Setup(void)
 {
 #ifdef LED_PORT
-	RCC->APB2ENR |= RCC_IOENR_GPIOEN(LED_PORT);
+	RCC->IOENR |= RCC_IOENR_GPIOEN(LED_PORT);
 	CRF(LED_PORT, LED_BIT) = GPIO_CR_OPP_S;
 #endif
+}
+
+static inline void Btn_Setup(void)
+{
 #ifdef BTN_PORT
-	RCC->APB2ENR |= RCC_IOENR_GPIOEN(BTN_PORT);
+	RCC->IOENR |= RCC_IOENR_GPIOEN(BTN_PORT);
 	CRF(BTN_PORT, BTN_BIT) = GPIO_CR_INP;
-	BTN_PORT->BRR = BTN_MSK;
+	BTN_PORT->BRR = BTN_MSK;	// pull down for BluePillPlus
 #endif
+}
+
+static inline void LED_Btn_Setup(void)
+{
+	LED_Setup();
+	Btn_Setup();
 }
 
 static inline void hwLED_Set(bool on)
