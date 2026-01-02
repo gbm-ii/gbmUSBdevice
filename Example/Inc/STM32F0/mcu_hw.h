@@ -19,7 +19,12 @@
 #ifndef INC_MCU_HW_H_
 #define INC_MCU_HW_H_
 
+#include <stdbool.h>
 #include "stm32f0yy.h"
+#include "bf_reg.h"
+#if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
+	#include "board.h"
+#endif
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline

@@ -22,7 +22,7 @@
 #include <stdbool.h>
 #include "stm32f4yy.h"
 #include "bf_reg.h"
-#if __has_include("board.h")
+#if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
 	#include "board.h"
 	// If board.h is present, HSE_VALUE and RCC_CR_HSESEL must be defined in board.h.
 #else

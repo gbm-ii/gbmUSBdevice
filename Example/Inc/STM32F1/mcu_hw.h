@@ -1,7 +1,7 @@
 /*
  * lightweight USB device stack by gbm
  * mcu_hw.h - STM32F1-specific setup routines for USB
- * Copyright (c) 2024 gbm
+ * Copyright (c) 2024-2026 gbm
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,10 +22,8 @@
 #include <stdbool.h>
 #include "stm32f10y.h"
 #include "bf_reg.h"
-
-//#define BLUEPILLPLUS
-#ifdef BLUEPILLPLUS
-#include "boards/stm32f103bluepill.h"
+#if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
+	#include "board.h"
 #endif
 
 /*
@@ -106,6 +104,5 @@ static inline void hwLED_Set(bool on)
 	LED_PORT->BSRR = on ^ LED_ACTIVE_LEVEL ? LED_MSK << 16 : LED_MSK;
 #endif
 }
-
 
 #endif /* INC_MCU_HW_H_ */

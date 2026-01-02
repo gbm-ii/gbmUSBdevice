@@ -21,7 +21,7 @@
 
 #include "stm32h5yy.h"
 #include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
-#if __has_include("board.h")
+#if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
 	#include "board.h"
 #endif
 //#include "boards/stm32nucleo64.h"		// from github.com/gbm-ii/STM32_Inc
@@ -36,8 +36,8 @@
  * The routine may be replaced by any user-writen or CubeMX-generated HAL routine providing stable 48 MHz clock to USB peripheral.
  */
 //#define USE_HSE
-#undef HSE_VALUE
-#define HSE_VALUE	24000000u	// Nucleo-H503 Xtal osc. frequency
+//#undef HSE_VALUE
+//#define HSE_VALUE	24000000u	// Nucleo-H503 Xtal osc. frequency
 //#define HSI_DIV2_VALUE	32000000u	// default HSI (divided) frequency after reset
 
 #define HCLK_FREQ	240000000u	// target clock frequency

@@ -22,7 +22,10 @@
 #include <stdbool.h>
 #include "stm32c0yy.h"
 #include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
-#include "boards/stm32nucleo64.h"
+#if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
+	#include "board.h"
+#endif
+//#include "boards/stm32nucleo64.h"
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
