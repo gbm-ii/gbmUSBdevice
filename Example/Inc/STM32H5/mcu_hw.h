@@ -24,7 +24,20 @@
 #if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
 	#include "board.h"
 #endif
-//#include "boards/stm32nucleo64.h"		// from github.com/gbm-ii/STM32_Inc
+
+/*
+ * board definition file may include the definitions:
+   #define USE_HSE	// define to use HSE
+   #define HSE_VALUE	24000000u	// board's Xtal osc. frequency
+   #define HCLK_FREQ	240000000u	// target clock frequency
+   #define HSI_DIV2_VALUE	32000000u	// default HSI (divided) frequency after reset, changed by ST setup
+
+   The proper defs for Nucleo-64 may be found in "boards/stm32nucleo64.h" from github.com/gbm-ii/STM32_Inc
+ */
+
+#ifndef HCLK_FREQ	// may be defined in board.h
+#define HCLK_FREQ	240000000u	// default target clock frequency
+#endif
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
@@ -35,17 +48,11 @@
  * Minimal clock setup routine for STM32H5 (tested on Nucleo-H503)
  * The routine may be replaced by any user-writen or CubeMX-generated HAL routine providing stable 48 MHz clock to USB peripheral.
  */
-//#define USE_HSE
-//#undef HSE_VALUE
-//#define HSE_VALUE	24000000u	// Nucleo-H503 Xtal osc. frequency
-//#define HSI_DIV2_VALUE	32000000u	// default HSI (divided) frequency after reset
-
-#define HCLK_FREQ	240000000u	// target clock frequency
 
 static inline void ClockSetup(void)
 {
 	// initial clock after reset is HSI divided by 2 -> 32 MHz
-	// BUT ST-supplied SystemInit resets the divisor, so the clock freq is 64 MHz!
+	// BUT ST-supplied SystemInit resets the divisor in RCC->CR HSIDIV field, so the clock freq is 64 MHz!
 	PWR->VOSCR = PWR_VOSCR_VOS;	// raise core voltage; 3 -> scale 0, for highest operating frequency
 	// osc and PLL setup
 	// N = 240, P = 2
