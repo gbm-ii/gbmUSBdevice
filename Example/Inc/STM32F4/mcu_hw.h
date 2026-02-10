@@ -135,7 +135,7 @@ static inline void LED_Btn_Setup(void)
 static inline void hwLED_Set(bool on)
 {
 #ifdef LED_PORT
-	LED_PORT->BSRR = on ? LED_MSK << 16 : LED_MSK;
+	LED_PORT->BSRR = on ^ !LED_ACTIVE_LEVEL ? LED_MSK : LED_MSK << 16;
 #endif
 }
 

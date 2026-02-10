@@ -55,9 +55,10 @@ static inline void ClockSetup(void)
 	// BUT ST-supplied SystemInit resets the divisor in RCC->CR HSIDIV field, so the clock freq is 64 MHz!
 	PWR->VOSCR = PWR_VOSCR_VOS;	// raise core voltage; 3 -> scale 0, for highest operating frequency
 	// osc and PLL setup
-	// N = 240, P = 2
+	// PLL input clock 2 MHz
+	// SYSCLK from PLL1P, N = 240, P = 2; USB could be obtained from PLL1Q
 	RCC->PLL1DIVR = (2 - 1) << RCC_PLL1DIVR_PLL1P_Pos | (HCLK_FREQ * 2 / 48000000 - 1) << RCC_PLL1DIVR_PLL1Q_Pos | (2 - 1) << RCC_PLL1DIVR_PLL1R_Pos
-		| (HCLK_FREQ / 1000000u - 1) << RCC_PLL1DIVR_PLL1N_Pos;
+		| (HCLK_FREQ / 1000000u - 1) << RCC_PLL1DIVR_PLL1N_Pos;	// multiply to get 2 * HCLK_FREQ
 #ifdef USE_HSE
 	RCC->CR |= RCC_CR_HSEON | RCC_CR_HSI48ON;
 	while ((RCC->CR & (RCC_CR_HSERDY | RCC_CR_HSI48RDY)) != (RCC_CR_HSERDY | RCC_CR_HSI48RDY)) ;
@@ -77,7 +78,8 @@ static inline void ClockSetup(void)
 	while ((PWR->VOSSR & (PWR_VOSSR_ACTVOS | PWR_VOSSR_VOSRDY)) != (PWR_VOSSR_ACTVOS | PWR_VOSSR_VOSRDY)) ;
 	// wait for PLL ready
 	while (~RCC->CR & RCC_CR_PLL1RDY) ;
-	FLASH->ACR = FLASH_ACR_PRFTEN | FLASH_ACR_WRHIGHFREQ_1 | FLASH_ACR_LATENCY_5WS;
+	// no. of wait states = freq / 42 MHz; WRHIGHFREQ = freq / 84 MHz ? (See STM32H7B0 RM.)
+	FLASH->ACR = FLASH_ACR_PRFTEN | FLASH_ACR_WRHIGHFREQ_1 | (HCLK_FREQ / 42000000u) << FLASH_ACR_LATENCY_Pos;
 	// enable instruction cache
 	while (ICACHE->SR & ICACHE_SR_BUSYF) ;
 	ICACHE->CR |= ICACHE_CR_EN;
@@ -145,7 +147,7 @@ static inline void LED_Btn_Setup(void)
 static inline void hwLED_Set(bool on)
 {
 #ifdef LED_PORT
-	LED_PORT->BSRR = on ? LED_MSK : LED_MSK << 16;
+	LED_PORT->BSRR = on ^ !LED_ACTIVE_LEVEL ? LED_MSK : LED_MSK << 16;
 #endif
 }
 
