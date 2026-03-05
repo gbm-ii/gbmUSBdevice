@@ -19,10 +19,17 @@
 #ifndef INC_MCU_HW_H_
 #define INC_MCU_HW_H_
 
-#include <stdbool.h>
 #include "stm32g0yy.h"
 #include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
+#if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
+	#include "board.h"
+	// If board.h is present, HSE_VALUE and RCC_CR_HSESEL must be defined in board.h.
+#else
 #include "boards/stm32nucleo64.h"
+#endif
+
+// must be included after board defs!
+#include "stm32gpioutil.h"
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
@@ -51,27 +58,6 @@ static inline void USBhwSetup(void)
     RCC->APBENR1 |= RCC_APBENR1_PWREN | RCC_APBENR1_USBEN;
 	PWR->CR2 |= PWR_CR2_USV;
 	// With G0 series, MODER and OSPEEEDR value is "don't care" for USB data pins
-}
-
-// board LED/Button setup needed for HID demo
-static inline void LED_Btn_Setup(void)
-{
-#ifdef LED_PORT
-	RCC->IOENR |= RCC_IOENR_GPIOEN(LED_PORT);
-	BF2F(LED_PORT->MODER, LED_BIT) = GPIO_MODER_OUT;
-#endif
-#ifdef BTN_PORT
-	RCC->IOENR |= RCC_IOENR_GPIOEN(BTN_PORT);
-	BF2F(BTN_PORT->PUPDR, BTN_BIT) = GPIO_PUPDR_PD;
-	BF2F(BTN_PORT->MODER, BTN_BIT) = GPIO_MODER_IN;
-#endif
-}
-
-static inline void hwLED_Set(bool on)
-{
-#ifdef LED_PORT
-	LED_PORT->BSRR = on ? LED_MSK : LED_MSK << 16;
-#endif
 }
 
 #endif /* INC_MCU_HW_H_ */

@@ -1,6 +1,6 @@
 /*
  * lightweight USB device stack by gbm
- * mcu_hw.h - STM32U5-specific setup routines for USB
+ * mcu_hw.h - STM32U3-specific setup routines for USB
  * Copyright (c) 2024 gbm
  *
  * This program is free software: you can redistribute it and/or modify
@@ -19,16 +19,13 @@
 #ifndef INC_MCU_HW_H_
 #define INC_MCU_HW_H_
 
-#include "stm32u5yy.h"
+#include "stm32u3yy.h"
 #include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
 
-#if defined(STM32U535xx) || defined(STM32U545xx)
-#include "boards/stm32nucleo64.h"
-#elif defined(STM32U575xx)
-#include "boards/stm32nucleo144-u5.h"
-#define LED_PORT	LEDG_PORT
-#define LED_BIT	LEDG_BIT
-#define LED_MSK	LEDG_MSK
+#if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
+	#include "board.h"
+	// If board.h is present, HSE_VALUE and RCC_CR_HSESEL must be defined in board.h.
+#else
 #endif
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
@@ -41,7 +38,7 @@
  */
 
 #ifndef HCLK_FREQ
-#define HCLK_FREQ	160000000u
+#define HCLK_FREQ	96000000u
 #endif
 
 // frequency step for computing Flash wait states

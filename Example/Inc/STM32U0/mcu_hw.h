@@ -24,6 +24,9 @@
 #include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
 #include "boards/stm32u083c-dk.h"
 
+// must be included after board defs!
+#include "stm32gpioutil.h"
+
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
  * in a header file.
@@ -57,27 +60,6 @@ static inline void USBhwSetup(void)
 	PWR->CR2 |= PWR_CR2_USV; // | PWR_CR2_PVME1;
     RCC->APBENR1 |= RCC_APBENR1_USBEN;
 	// With G0 and U0 series, MODER and OSPEEEDR value is "don't care" for USB data pins
-}
-
-// board LED/Button setup needed for HID demo
-static inline void LED_Btn_Setup(void)
-{
-#ifdef LED_PORT
-	RCC->IOENR |= RCC_IOENR_GPIOEN(LED_PORT);
-	BF2F(LED_PORT->MODER, LED_BIT) = GPIO_MODER_OUT;
-#endif
-#ifdef BTN_PORT
-	RCC->IOENR |= RCC_IOENR_GPIOEN(BTN_PORT);
-	BF2F(BTN_PORT->PUPDR, BTN_BIT) = GPIO_PUPDR_PD;
-	BF2F(BTN_PORT->MODER, BTN_BIT) = GPIO_MODER_IN;
-#endif
-}
-
-static inline void hwLED_Set(bool on)
-{
-#ifdef LED_PORT
-	LED_PORT->BSRR = on ? LED_MSK : LED_MSK << 16;
-#endif
 }
 
 #endif /* INC_MCU_HW_H_ */

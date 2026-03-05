@@ -8,6 +8,7 @@
 
 #include "mcu_hw.h"		// in Example/Inc/<mcu_series> directory
 #include "usb_app.h"	// in USBdevice/Inc
+#include <stdbool.h>
 
 void LED_Set(bool on)
 {

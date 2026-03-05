@@ -22,14 +22,18 @@
 #include "stm32u5yy.h"
 #include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
 
-#if defined(STM32U535xx) || defined(STM32U545xx)
+#if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
+	#include "board.h"
+	// If board.h is present, HSE_VALUE and RCC_CR_HSESEL must be defined in board.h.
+#elif defined(STM32U535xx) || defined(STM32U545xx)
 #include "boards/stm32nucleo64.h"
 #elif defined(STM32U575xx)
 #include "boards/stm32nucleo144-u5.h"
-#define LED_PORT	LEDG_PORT
-#define LED_BIT	LEDG_BIT
-#define LED_MSK	LEDG_MSK
 #endif
+
+// must be included after board defs!
+#include "stm32gpioutil.h"
+
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
  * in a header file.
@@ -129,27 +133,6 @@ static inline void USBhwSetup(void)
 	BF2F(GPIOA->OSPEEDR, 12) = GPIO_OSPEEDR_VHI;
 	BF2F(GPIOA->MODER, 11) = GPIO_MODER_AF;
 	BF2F(GPIOA->MODER, 12) = GPIO_MODER_AF;
-#endif
-}
-
-// board LED/Button setup needed for HID demo
-static inline void LED_Btn_Setup(void)
-{
-#ifdef LED_PORT
-	RCC->AHB2ENR1 |= RCC_IOENR_GPIOEN(LED_PORT);
-	BF2F(LED_PORT->MODER, LED_BIT) = GPIO_MODER_OUT;
-#endif
-#ifdef BTN_PORT
-	RCC->AHB2ENR1 |= RCC_IOENR_GPIOEN(BTN_PORT);
-	BF2F(BTN_PORT->PUPDR, BTN_BIT) = GPIO_PUPDR_PD;
-	BF2F(BTN_PORT->MODER, BTN_BIT) = GPIO_MODER_IN;
-#endif
-}
-
-static inline void hwLED_Set(bool on)
-{
-#ifdef LED_PORT
-	LED_PORT->BSRR = on ? LED_MSK : LED_MSK << 16;
 #endif
 }
 

@@ -19,10 +19,18 @@
 #ifndef INC_MCU_HW_H_
 #define INC_MCU_HW_H_
 
-#include <stdbool.h>
 #include "stm32l4yy.h"
 #include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
-#include "boards/stm32nucleo64.h"
+
+#if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
+	#include "board.h"
+	// If board.h is present, HSE_VALUE and RCC_CR_HSESEL must be defined in board.h.
+#else
+//#include "boards/stm32nucleo64.h"
+#endif
+
+// must be included after board defs!
+#include "stm32gpioutil.h"
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
@@ -45,6 +53,16 @@
 #define FLASH_WS_FREQ_STEP	16000000u	// L41x..L4Ax - classic L4
 #endif
 
+/**
+  \brief   MCU Clock Configuration
+  \details Initializes the MCU main clock to the defined <b>HCLK_FREQ</b> and USB clock to 48 MHz
+  \param [in]  none
+  \return      none
+  \note		The main clock source is 4 MHz MSI.
+			For L47x, MSI is synchronized to LSE andUSB clock is generated form it.
+			For others (STM32L4x2, L49x..L4Sx), USB clock is obtained from HSI48 synchronized to USB SOF.
+			synchronized to LSE. The USB clock is set to HSI48 synchronized to USB SOF.
+ */
 static inline void ClockSetup(void)
 {
 #ifdef CRS
@@ -103,6 +121,7 @@ static inline void ClockSetup(void)
  */
 static inline void USBhwSetup(void)
 {
+#ifdef RCC_AHB2ENR_OTGFSEN
 	RCC->APB1ENR1 |= RCC_APB1ENR1_PWREN;
 	PWR->CR2 |= PWR_CR2_USV | PWR_CR2_IOSV;	// enable VddUSB
 	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN	| RCC_AHB2ENR_OTGFSEN;
@@ -113,36 +132,8 @@ static inline void USBhwSetup(void)
 	BF2F(GPIOA->OSPEEDR, 12) = GPIO_OSPEEDR_HI;
 	BF2F(GPIOA->MODER, 11) = GPIO_MODER_AF;
 	BF2F(GPIOA->MODER, 12) = GPIO_MODER_AF;
-}
-
-// board LED/Button setup needed for HID demo
-static inline void LED_Setup(void)
-{
-#ifdef LED_PORT
-	RCC->IOENR |= RCC_IOENR_GPIOEN(LED_PORT);
-	BF2F(LED_PORT->MODER, LED_BIT) = GPIO_MODER_OUT;
-#endif
-}
-
-static inline void Btn_Setup(void)
-{
-#ifdef BTN_PORT
-	RCC->IOENR |= RCC_IOENR_GPIOEN(BTN_PORT);
-	BF2F(BTN_PORT->PUPDR, BTN_BIT) = BTN_PULL;
-	BF2F(BTN_PORT->MODER, BTN_BIT) = GPIO_MODER_IN;
-#endif
-}
-
-static inline void LED_Btn_Setup(void)
-{
-	LED_Setup();
-	Btn_Setup();
-}
-
-static inline void hwLED_Set(bool on)
-{
-#ifdef LED_PORT
-	LED_PORT->BSRR = on ? LED_MSK : LED_MSK << 16;
+#else
+#warning STM32L4x2 not supported yet
 #endif
 }
 

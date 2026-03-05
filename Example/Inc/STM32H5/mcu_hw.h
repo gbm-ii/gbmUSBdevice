@@ -25,6 +25,9 @@
 	#include "board.h"
 #endif
 
+// must be included after board defs!
+#include "stm32gpioutil.h"
+
 /*
  * board definition file may include the definitions:
    #define USE_HSE	// define to use HSE
@@ -106,25 +109,7 @@ static inline void USBhwSetup(void)
 	// no need to setup GPIOA, it is enough to activate USB
 }
 
-// board LED/Button setup needed for HID demo
-static inline void LED_Setup(void)
-{
-#ifdef LED_PORT
-	RCC->IOENR |= RCC_IOENR_GPIOEN(LED_PORT);
-	BF2F(LED_PORT->MODER, LED_BIT) = GPIO_MODER_OUT;
-#endif
-}
-
-static inline void Btn_Setup(void)
-{
-#ifdef BTN_PORT
-	RCC->IOENR |= RCC_IOENR_GPIOEN(BTN_PORT);
-	BF2F(BTN_PORT->PUPDR, BTN_BIT) = BTN_PULL;
-	BF2F(BTN_PORT->MODER, BTN_BIT) = GPIO_MODER_IN;
-#endif
-}
-
-static inline void LED_Btn_Setup(void)
+static inline void xLED_Btn_Setup(void)
 {
 	LED_Setup();
 	Btn_Setup();
@@ -141,13 +126,6 @@ static inline void LED_Btn_Setup(void)
 	BF2F(GPIOA->MODER, 3) = GPIO_MODER_AF;
 	BF2F(GPIOA->MODER, 4) = GPIO_MODER_AF;
 #endif
-#endif
-}
-
-static inline void hwLED_Set(bool on)
-{
-#ifdef LED_PORT
-	LED_PORT->BSRR = on ^ !LED_ACTIVE_LEVEL ? LED_MSK : LED_MSK << 16;
 #endif
 }
 

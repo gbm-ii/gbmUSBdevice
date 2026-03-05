@@ -26,6 +26,9 @@
 	#include "board.h"
 #endif
 
+// must be included after board defs!
+#include "stm32gpioutil.h"
+
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
  * in a header file.
@@ -72,37 +75,6 @@ static inline void USBhwSetup(void)
 	noHAL_Delay(USB_ENUM_DELAY_ms);
 	
     RCC->APB1ENR |= RCC_APB1ENR_USBEN;	// activate USB, pulling up DP
-}
-
-// board LED/Button setup needed for HID demo
-static inline void LED_Setup(void)
-{
-#ifdef LED_PORT
-	RCC->IOENR |= RCC_IOENR_GPIOEN(LED_PORT);
-	CRF(LED_PORT, LED_BIT) = GPIO_CR_OPP_S;
-#endif
-}
-
-static inline void Btn_Setup(void)
-{
-#ifdef BTN_PORT
-	RCC->IOENR |= RCC_IOENR_GPIOEN(BTN_PORT);
-	CRF(BTN_PORT, BTN_BIT) = GPIO_CR_INP;
-	BTN_PORT->BRR = BTN_MSK;	// pull down for BluePillPlus
-#endif
-}
-
-static inline void LED_Btn_Setup(void)
-{
-	LED_Setup();
-	Btn_Setup();
-}
-
-static inline void hwLED_Set(bool on)
-{
-#ifdef LED_PORT
-	LED_PORT->BSRR = on ^ LED_ACTIVE_LEVEL ? LED_MSK << 16 : LED_MSK;
-#endif
 }
 
 #endif /* INC_MCU_HW_H_ */

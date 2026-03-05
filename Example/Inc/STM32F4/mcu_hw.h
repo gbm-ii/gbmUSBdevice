@@ -19,7 +19,6 @@
 #ifndef INC_MCU_HW_H_
 #define INC_MCU_HW_H_
 
-#include <stdbool.h>
 #include "stm32f4yy.h"
 #include "bf_reg.h"
 #if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
@@ -27,26 +26,13 @@
 	// If board.h is present, HSE_VALUE and RCC_CR_HSESEL must be defined in board.h.
 #else
 
-/*
- * The routines below are supposed to be called only once, so they are defined as static inline
- * in a header file.
- */
-
+// TODO: remove, use board def file included from board.h
 #undef HSE_VALUE
 
 #ifdef BLACKPILL
+#include "boards/stm32f4blackpill.h"
 // F401 BlackPill board, 25 MHz osc
-#define HSE_VALUE 25000000u
-#define RCC_CR_HSESEL	RCC_CR_HSEON
 
-// LED active low
-#define LED_PORT GPIOC
-#define LED_BIT	13
-
-// user button, active low
-#define BTN_PORT	GPIOA
-#define BTN_BIT	0
-#define BTN_DOWN	(~BTN_PORT->IDR & 1u << BTN_BIT)
 
 #elif defined(NUCLEO64)	// Discovery / Nucleo 64
 // Nucleo-F401 board, 8 MHz ext. clock
@@ -68,10 +54,16 @@
 #endif
 #endif
 
-#define LED_MSK	(1u << LED_BIT)
+// must be included after board defs!
+#include "stm32gpioutil.h"
 
 #define HCLK_FREQ	84000000u
 #define USB_ENUM_DELAY_ms	50u
+
+/*
+ * The routines below are supposed to be called only once, so they are defined as static inline
+ * in a header file.
+ */
 
 // minimal clock setup required for USB device operation
 static inline void ClockSetup(void)
@@ -97,46 +89,15 @@ static inline void ClockSetup(void)
 // USB peripheral enable & pin configuration
 static inline void USBhwSetup(void)
 {
-	RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
 	RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
 
+	RCC->IOENR |= RCC_IOENR_GPIOEN(GPIOA);
 	AFRF(GPIOA, 11) = AFN_USB;
 	AFRF(GPIOA, 12) = AFN_USB;
 	BF2F(GPIOA->OSPEEDR, 11) = GPIO_OSPEEDR_HI;
 	BF2F(GPIOA->OSPEEDR, 12) = GPIO_OSPEEDR_HI;
 	BF2F(GPIOA->MODER, 11) = GPIO_MODER_AF;
 	BF2F(GPIOA->MODER, 12) = GPIO_MODER_AF;
-}
-
-// board LED/Button setup needed for HID demo
-static inline void LED_Setup(void)
-{
-#ifdef LED_PORT
-	RCC->IOENR |= RCC_IOENR_GPIOEN(LED_PORT);
-	BF2F(LED_PORT->MODER, LED_BIT) = GPIO_MODER_OUT;
-#endif
-}
-
-static inline void Btn_Setup(void)
-{
-#ifdef BTN_PORT
-	RCC->IOENR |= RCC_IOENR_GPIOEN(BTN_PORT);
-	BF2F(BTN_PORT->PUPDR, BTN_BIT) = BTN_PULL;
-	BF2F(BTN_PORT->MODER, BTN_BIT) = GPIO_MODER_IN;
-#endif
-}
-
-static inline void LED_Btn_Setup(void)
-{
-	LED_Setup();
-	Btn_Setup();
-}
-
-static inline void hwLED_Set(bool on)
-{
-#ifdef LED_PORT
-	LED_PORT->BSRR = on ^ !LED_ACTIVE_LEVEL ? LED_MSK : LED_MSK << 16;
-#endif
 }
 
 #endif /* INC_MCU_HW_H_ */
