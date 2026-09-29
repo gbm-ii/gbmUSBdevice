@@ -162,7 +162,7 @@ const struct vcomcfg_ vcomcfg[USBD_CDC_CHANNELS] = {
 #endif	// USBD_CDC_CHANNELS > 1
 };
 
-//
+// write to VCOM data in endpoint, called by application
 void vcom_write(uint8_t ch, const char *buf, uint16_t size)
 {
 	if (ch < USBD_CDC_CHANNELS)
@@ -242,6 +242,18 @@ void vcom2_putstring(const char *s)
 
 #endif	// USBD_CDC_CHANNELS > 2
 #endif	// USBD_CDC_CHANNELS > 1
+
+// called by app to suspend input processing
+void vcom_disable_rx_processing(uint8_t ch)
+{
+	NVIC_DisableIRQ(vcomcfg[ch].rx_irqn);
+}
+
+// called by app to resume input processing
+void vcom_enable_rx_processing(uint8_t ch)
+{
+	NVIC_EnableIRQ(vcomcfg[ch].rx_irqn);
+}
 
 // Serial state notification =============================================
 struct cdc_SerialStateNotif_  ssnotif = {
@@ -495,6 +507,10 @@ void VCOM_rx_IRQHandler(uint8_t ch)
 		{
 			pival = vcom_process_input(ch, cdc_data[ch].RxData[cdc_data[ch].session.RxIdx++]);
 			cdc_data[ch].session.prompt_rq |= pival & PIRET_PROMPTRQ;
+			if (pival & PIRET_DISABLERX)
+			{
+				NVIC_DisableIRQ(vcomcfg[ch].rx_irqn);
+			}
 		}
 		if (cdc_data[ch].session.RxIdx == cdc_data[ch].session.RxLength)
 		{

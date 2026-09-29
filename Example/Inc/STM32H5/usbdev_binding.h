@@ -8,9 +8,9 @@
 #ifndef INC_USBDEV_BINDING_H_
 #define INC_USBDEV_BINDING_H_
 
-// binding for G0B1
+// binding for H5
 
-#define USB_IRQ_PRI	2
+#define USB_IRQ_PRI	10
 //#define VCOM_TX_IRQn	I2C1_ER_IRQn
 //#define VCOM_TX_IRQHandler	I2C1_ER_IRQHandler
 //#define VCOM_RX_IRQn	I2C1_EV_IRQn

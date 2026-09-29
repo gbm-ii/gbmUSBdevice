@@ -23,9 +23,13 @@ void vcom_putchar(uint8_t ch, char c);
 void vcom_putstring(uint8_t ch, const char *s);
 void vcom_prompt_request(uint8_t ch);
 
+void vcom_disable_rx_processing(uint8_t ch);
+void vcom_enable_rx_processing(uint8_t ch);
+
 uint8_t vcom_process_input(uint8_t ch, uint8_t c);	// defined as weak in usb_app.c, redefine for real use
 
 #define PIRET_PROMPTRQ	1u
 #define PIRET_AUTONUL	0x10
+#define PIRET_DISABLERX	0x10
 
 #endif /* INC_USB_APP_H_ */
