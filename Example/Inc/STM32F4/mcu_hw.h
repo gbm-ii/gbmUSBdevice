@@ -23,63 +23,132 @@
 #include "bf_reg.h"
 #if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
 	#include "board.h"
-	// If board.h is present, HSE_VALUE and RCC_CR_HSESEL must be defined in board.h.
-#else
-
-// TODO: remove, use board def file included from board.h
-#undef HSE_VALUE
-
-#ifdef BLACKPILL
-#include "boards/stm32f4blackpill.h"
-// F401 BlackPill board, 25 MHz osc
-
-
-#elif defined(NUCLEO64)	// Discovery / Nucleo 64
-// Nucleo-F401 board, 8 MHz ext. clock
-#define HSE_VALUE 8000000u
-#define RCC_CR_HSESEL	(RCC_CR_HSEON | RCC_CR_HSEBYP)	// Nucleo-64 - Ext. clock
-
-#define LED_PORT	GPIOA
-#define LED_BIT	5
-// user button, active low
-#define BTN_PORT	GPIOC
-#define BTN_BIT	13
-
-#elif defined(F4DISCO)
-// F401 Discovery board, 8 MHz osc
-#define HSE_VALUE 8000000u
-#define RCC_CR_HSESEL	RCC_CR_HSEON	// Discovery - XTAL
-#else
-#error Board type not defined!
-#endif
+	// If board.h is present, HSE_VALUE and RCC_CR_HSESEL should be defined in board.h.
 #endif
 
 // must be included after board defs!
 #include "stm32gpioutil.h"
 
+#ifndef HCLK_FREQ
 #define HCLK_FREQ	84000000u
+#endif
+
 #define USB_ENUM_DELAY_ms	50u
+
+//#define HSE_VALUE 8000000u
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
  * in a header file.
  */
 
-// minimal clock setup required for USB device operation
 static inline void ClockSetup(void)
 {
-	// after reset VOS in PWR->CR is set for 84 MHz operation in F401
+	// minimal clock setup required for USB device operation
+#ifdef RCC_CR_HSESEL
 	RCC->CR |= RCC_CR_HSESEL;
 	while (!(RCC->CR & RCC_CR_HSERDY));
-	RCC->PLLCFGR = (RCC->PLLCFGR & RCC_PLLCFGR_RSVD)
-		| RCC_PLLCFGR_PLLSRC_HSE
-		| RCC_PLLCFGR_PLLMV(HSE_VALUE / 1000000u)
-		| RCC_PLLCFGR_PLLNV(336)	// 192 for F411 @ 96 MHz
-		| RCC_PLLCFGR_PLLPV(4)		// 2 for F411 @ 96 MHz
-		| RCC_PLLCFGR_PLLQV(7);		// 4 for F411 @ 96 MHz
+#else	// try BYPASS and XTAL
+#define HSE_START_TOUT	4000u	// startup time is 2 ms typ., the loop must take at least 9 instr
+	// try HSE bypass first
+	RCC->CR |= RCC_CR_HSEON | RCC_CR_HSEBYP;
+	for (volatile uint32_t t = 0; t < HSE_START_TOUT && !(RCC->CR & RCC_CR_HSERDY); t++) ;
+	if (!(RCC->CR & RCC_CR_HSERDY))
+	{
+		// no ext. generator -> try oscillator
+		RCC->CR &= ~RCC_CR_HSEON;
+		RCC->CR &= ~RCC_CR_HSEBYP;
+		while (RCC->CR & (RCC_CR_HSEBYP | RCC_CR_HSEON)) ;
+		RCC->CR |= RCC_CR_HSEON;
+		for (volatile uint32_t t = 0; t < HSE_START_TOUT && !(RCC->CR & RCC_CR_HSERDY); t++) ;
+	}
+#endif
+
+	if (RCC->CR & RCC_CR_HSERDY)
+	{
+#ifdef HSE_VALUE
+		uint32_t hs_freq_MHz = HSE_VALUE / 1000000u;
+#else
+		// measure HSE frequency using TIM11 - RefMan rm0368 6.2.11
+#define HSEDIV	31u
+		RCC->APB2ENR |= RCC_APB2ENR_TIM11EN;
+		// set prescaler for HSE_RTC
+		RCC->CFGR = HSEDIV << RCC_CFGR_RTCPRE_Pos;	// 1..31
+
+		TIM11->OR = TIM_OR_TI1_RMP_1;	// set TI1 to HSE_RTC
+		TIM11->CCMR1 = TIM_CCMR1_CC1S_0;			// TIM1CH1 in capture mode
+
+		TIM11->CCER = TIM_CCER_CC1E;
+		TIM11->CR1 = TIM_CR1_CEN;
+
+		// count captures until overflow
+		uint16_t caps = 0;
+		uint32_t sr;
+		do {
+			sr = TIM11->SR;
+			if (sr & TIM_SR_CC1IF)
+			{
+				++caps;
+				TIM11->SR = ~TIM_SR_CC1IF;
+			}
+		} while (~sr & TIM_SR_UIF);
+
+		// HSE_FREQ = 4..26 MHz, so HSE_RTC is between 130 kHz and 840 kHz
+		// timer overflows after 4 ms, max caps is 4300 for 32 MHz but max HSE freq is 26 MHz
+
+		uint32_t hs_freq = (caps * HSEDIV * (HSI_VALUE / 1024) + 32) / (65536 / 1024);
+		uint32_t hs_freq_MHz = (hs_freq + 500000) / 1000000;
+
+		RCC->APB2ENR = 0;
+		RCC->APB2RSTR = RCC_APB2RSTR_TIM11RST;	// RST is independent from EN
+		RCC->APB2RSTR = 0;
+#endif	// HSE_VALUE
+
+		// setup PLL for HSE operation
+#if HCLK_FREQ == 84000000u
+		RCC->PLLCFGR = (RCC->PLLCFGR & RCC_PLLCFGR_RSVD)
+			| RCC_PLLCFGR_PLLSRC_HSE
+			| RCC_PLLCFGR_PLLMV(hs_freq_MHz)
+			| RCC_PLLCFGR_PLLNV(336)	// 192 for F411 @ 96 MHz
+			| RCC_PLLCFGR_PLLPV(4)		// 2 for F411 @ 96 MHz
+			| RCC_PLLCFGR_PLLQV(7);		// 4 for F411 @ 96 MHz
+		// set Flash speed
+		FLASH->ACR = FLASH_ACR_PRFTEN | FLASH_ACR_ICEN | FLASH_ACR_DCEN | FLASH_ACR_LATENCY_2WS;	// 1ws 30..64, 3 ws 90..100
+#elif HCLK_FREQ == 96000000u
+		RCC->PLLCFGR = (RCC->PLLCFGR & RCC_PLLCFGR_RSVD)
+			| RCC_PLLCFGR_PLLSRC_HSE
+			| RCC_PLLCFGR_PLLMV(hs_freq_MHz)
+			| RCC_PLLCFGR_PLLNV(192)	// 192 for F411 @ 96 MHz
+			| RCC_PLLCFGR_PLLPV(2)		// 2 for F411 @ 96 MHz
+			| RCC_PLLCFGR_PLLQV(4);		// 4 for F411 @ 96 MHz
+		// set Flash speed
+		FLASH->ACR = FLASH_ACR_PRFTEN | FLASH_ACR_ICEN | FLASH_ACR_DCEN | FLASH_ACR_LATENCY_3WS;	// 1ws 30..64, 3 ws 90..100
+#else
+#error HCLK_FREQ value not supported
+#endif
+
+	}
+	else
+	{
+		// use HSI - not reliable
+		RCC->PLLCFGR = (RCC->PLLCFGR & RCC_PLLCFGR_RSVD)
+			| RCC_PLLCFGR_PLLSRC_HSI
+			| RCC_PLLCFGR_PLLMV(HSI_VALUE / 1000000u)
+			| RCC_PLLCFGR_PLLNV(336)	// 192 for F411 @ 96 MHz
+			| RCC_PLLCFGR_PLLPV(4)		// 2 for F411 @ 96 MHz
+			| RCC_PLLCFGR_PLLQV(7);		// 4 for F411 @ 96 MHz
+	}
+#if (HCLK_FREQ > 84000000u/* && (DBGMCU->IDCODE & DBGMCU_IDCODE_DEV_ID) == 0x431*/)
+	{
+		// after reset VOS in PWR->CR is set for 84 MHz operation in F401
+		// for F411, set voltage scaling to mode 1 (11) for > 84 MHz
+		// (for F401 & F411, the default setting of 10 supports 84 MHz operation)
+		RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+		PWR->CR = PWR_CR_VOS;	// scale 1
+		while (~PWR->CSR & PWR_CSR_VOSRDY) ;
+	}
+#endif
 	RCC->CR |= RCC_CR_PLLON;	//
-	// set Flash speed
-	FLASH->ACR = FLASH_ACR_PRFTEN | FLASH_ACR_ICEN | FLASH_ACR_DCEN | FLASH_ACR_LATENCY_2WS;	// 1ws 30..64, 3 ws 90..100
 	while (!(RCC->CR & RCC_CR_PLLRDY));
 
 	RCC->CFGR = RCC_CFGR_PPRE1_DIV2 | RCC_CFGR_PPRE2_DIV2 | RCC_CFGR_SW_PLL;	// APB2, APB1 prescaler = 2
