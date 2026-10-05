@@ -69,17 +69,16 @@ static inline void ClockSetup(void)
 #ifdef HSE_VALUE
 		uint32_t hs_freq_MHz = HSE_VALUE / 1000000u;
 #else
-		// measure HSE frequency using TIM11 - RefMan rm0368 6.2.11
+		// measure HSE frequency using TIM11 - RefMan RM0368 section 6.2.11
 #define HSEDIV	31u
 		RCC->APB2ENR |= RCC_APB2ENR_TIM11EN;
 		// set prescaler for HSE_RTC
 		RCC->CFGR = HSEDIV << RCC_CFGR_RTCPRE_Pos;	// 1..31
 
 		TIM11->OR = TIM_OR_TI1_RMP_1;	// set TI1 to HSE_RTC
-		TIM11->CCMR1 = TIM_CCMR1_CC1S_0;			// TIM1CH1 in capture mode
-
+		TIM11->CCMR1 = TIM_CCMR1_CC1S_0 | TIM_CCMR1_IC1PSC;			// TIM1CH1 in capture mode, prescale by 8
 		TIM11->CCER = TIM_CCER_CC1E;
-		TIM11->CR1 = TIM_CR1_CEN;
+		TIM11->CR1 = TIM_CR1_OPM | TIM_CR1_CEN;
 
 		// count captures until overflow
 		uint16_t caps = 0;
@@ -94,9 +93,9 @@ static inline void ClockSetup(void)
 		} while (~sr & TIM_SR_UIF);
 
 		// HSE_FREQ = 4..26 MHz, so HSE_RTC is between 130 kHz and 840 kHz
-		// timer overflows after 4 ms, max caps is 4300 for 32 MHz but max HSE freq is 26 MHz
+		// timer overflows after 4 ms, max caps is 4300 / 8 for 32 MHz but max HSE freq is 26 MHz
 
-		uint32_t hs_freq = (caps * HSEDIV * (HSI_VALUE / 1024) + 32) / (65536 / 1024);
+		uint32_t hs_freq = (caps * HSEDIV * (HSI_VALUE / 1024) + 32) / (65536 / 1024 / 8);
 		uint32_t hs_freq_MHz = (hs_freq + 500000) / 1000000;
 
 		RCC->APB2ENR = 0;
