@@ -32,6 +32,17 @@
 #include "usb_dev.h"
 #include "usb_hw_if.h"
 
+#ifndef USB_OTG_DOEPTSIZ_STUPCNT_Pos
+#define USB_OTG_DOEPTSIZ_STUPCNT_Pos	29
+#endif
+
+#ifndef USB_OTG_GRXSTSR_EPNUM_Pos
+#define USB_OTG_GRXSTSR_EPNUM_Pos USB_OTG_GRXSTSR_EPNUM_CHNUM_Pos
+#define USB_OTG_GRXSTSR_EPNUM_Msk USB_OTG_GRXSTSR_EPNUM_CHNUM_Msk
+#define USB_OTG_GRXSTSP_EPNUM_Pos USB_OTG_GRXSTSP_EPNUM_CHNUM_Pos
+#define USB_OTG_GRXSTSP_EPNUM_Msk USB_OTG_GRXSTSP_EPNUM_CHNUM_Msk
+#endif
+
 #define STUPCNT0	(3u << USB_OTG_DOEPTSIZ_STUPCNT_Pos)	// to be used for DOEPTSIZ0
 
 #define FIFO_WORDS	320u	// total FIFO memory size in 32-bit words
@@ -83,11 +94,11 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
 //	moved down usbg->GCCFG |= USB_OTG_GCCFG_PWRDWN;	// power up phy
 	// L4x6 RefMan 47.16.1
 //	usbg->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT_Msk | 6 << USB_OTG_GUSBCFG_TRDT_Pos;
-#ifdef RCC_AHB2ENR1_OTGHSPHYEN
-	// U5A5 HS
-	usbg->GUSBCFG = USB_OTG_GUSBCFG_PHYLPCS | USB_OTG_GUSBCFG_FDMOD | 6 << USB_OTG_GUSBCFG_TRDT_Pos;	// force device mode, set TRDT for > 32 MHz
+//#ifdef RCC_AHB2ENR1_OTGHSPHYEN
+#ifdef RCC_AHB2ENR1_USBPHYCEN	// U5A5 HS
+	usbg->GUSBCFG = /*USB_OTG_GUSBCFG_PHYLPCS |*/ USB_OTG_GUSBCFG_FDMOD | 9u << USB_OTG_GUSBCFG_TRDT_Pos;	// force device mode, set TRDT for > 32 MHz
 #else
-	usbg->GUSBCFG = USB_OTG_GUSBCFG_PHYSEL | USB_OTG_GUSBCFG_FDMOD | 6 << USB_OTG_GUSBCFG_TRDT_Pos;	// force device mode, set TRDT for > 32 MHz
+	usbg->GUSBCFG = USB_OTG_GUSBCFG_PHYSEL | USB_OTG_GUSBCFG_FDMOD | 6u << USB_OTG_GUSBCFG_TRDT_Pos;	// force device mode, set TRDT for > 32 MHz
 #endif
 	// in ST stack, TRDT is 5
 
@@ -111,7 +122,7 @@ static void USBhw_Init(const struct usbdevice_ *usbd)
 #ifdef USB_OTG_DCFG_ERRATIM
 	usbdp->DCFG |= USB_OTG_DCFG_ERRATIM;	// added 15.10.2024
 #endif
-#ifdef RCC_AHB2ENR1_OTGHSPHYEN
+#ifdef RCC_AHB2ENR1_USBPHYCEN	// U5A5 HS
 	// U5A5
 	usbdp->DCFG |= 1u << USB_OTG_DCFG_DSPD_Pos;	// Full speed (PERSCHIVL?)
 #else
