@@ -32,15 +32,22 @@
 #include "usb_dev.h"
 #include "usb_hw_if.h"
 
-#ifndef USB_OTG_DOEPTSIZ_STUPCNT_Pos
-#define USB_OTG_DOEPTSIZ_STUPCNT_Pos	29
-#endif
-
+#if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx) \
+	|| defined(STM32U575xx) || defined(STM32U585xx) || defined(STM32U5A5xx)
+// fix for U5A5
 #ifndef USB_OTG_GRXSTSR_EPNUM_Pos
 #define USB_OTG_GRXSTSR_EPNUM_Pos USB_OTG_GRXSTSR_EPNUM_CHNUM_Pos
 #define USB_OTG_GRXSTSR_EPNUM_Msk USB_OTG_GRXSTSR_EPNUM_CHNUM_Msk
+#endif
+#ifndef USB_OTG_GRXSTSP_EPNUM_Pos
 #define USB_OTG_GRXSTSP_EPNUM_Pos USB_OTG_GRXSTSP_EPNUM_CHNUM_Pos
 #define USB_OTG_GRXSTSP_EPNUM_Msk USB_OTG_GRXSTSP_EPNUM_CHNUM_Msk
+#endif
+
+#endif
+
+#ifndef USB_OTG_DOEPTSIZ_STUPCNT_Pos
+#define USB_OTG_DOEPTSIZ_STUPCNT_Pos	29
 #endif
 
 #define STUPCNT0	(3u << USB_OTG_DOEPTSIZ_STUPCNT_Pos)	// to be used for DOEPTSIZ0

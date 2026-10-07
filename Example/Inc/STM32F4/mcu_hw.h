@@ -1,7 +1,7 @@
 /*
  * lightweight USB device stack by gbm
  * mcu_hw.h - STM32F4-specific setup routines for USB
- * Copyright (c) 2024 gbm
+ * Copyright (c) 2024..26 gbm
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
 #include "bf_reg.h"
 #if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
 	#include "board.h"
-	// If board.h is present, HSE_VALUE and RCC_CR_HSESEL should be defined in board.h.
+	// If board.h is present, HSE_VALUE and RCC_CR_HSESEL should be defined in it.
 #endif
 
 // must be included after board defs!
@@ -35,8 +35,6 @@
 
 #define USB_ENUM_DELAY_ms	50u
 
-//#define HSE_VALUE 8000000u
-
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
  * in a header file.
@@ -45,10 +43,10 @@
 static inline void ClockSetup(void)
 {
 	// minimal clock setup required for USB device operation
-#ifdef RCC_CR_HSESEL
+#ifdef RCC_CR_HSESEL	// bit field combination for acivating HSE, crystal or generator - board-dependent
 	RCC->CR |= RCC_CR_HSESEL;
 	while (!(RCC->CR & RCC_CR_HSERDY));
-#else	// try BYPASS and XTAL
+#else	// try both BYPASS and XTAL
 #define HSE_START_TOUT	4000u	// startup time is 2 ms typ., the loop must take at least 9 instr
 	// try HSE bypass first
 	RCC->CR |= RCC_CR_HSEON | RCC_CR_HSEBYP;
@@ -67,36 +65,34 @@ static inline void ClockSetup(void)
 	if (RCC->CR & RCC_CR_HSERDY)
 	{
 #ifdef HSE_VALUE
-		uint32_t hs_freq_MHz = HSE_VALUE / 1000000u;
+		uint8_t hs_freq_MHz = HSE_VALUE / 1000000u;
 #else
 		// measure HSE frequency using TIM11 - RefMan RM0368 section 6.2.11
-#define HSEDIV	31u
 		RCC->APB2ENR |= RCC_APB2ENR_TIM11EN;
+#define HSEDIV	31u
 		// set prescaler for HSE_RTC
 		RCC->CFGR = HSEDIV << RCC_CFGR_RTCPRE_Pos;	// 1..31
+		// HSE_FREQ = 4..26 MHz, so HSE_RTC is between 130 kHz and 840 kHz
 
+		TIM11->ARR = HSI_VALUE / 1000000u * HSEDIV * 8u * 2u - 1;	// cap prescaler 8, *2 for rounding
 		TIM11->OR = TIM_OR_TI1_RMP_1;	// set TI1 to HSE_RTC
 		TIM11->CCMR1 = TIM_CCMR1_CC1S_0 | TIM_CCMR1_IC1PSC;			// TIM1CH1 in capture mode, prescale by 8
 		TIM11->CCER = TIM_CCER_CC1E;
 		TIM11->CR1 = TIM_CR1_OPM | TIM_CR1_CEN;
 
 		// count captures until overflow
-		uint16_t caps = 0;
+		uint8_t caps = 0;
 		uint32_t sr;
 		do {
 			sr = TIM11->SR;
 			if (sr & TIM_SR_CC1IF)
 			{
-				++caps;
 				TIM11->SR = ~TIM_SR_CC1IF;
+				++caps;
 			}
 		} while (~sr & TIM_SR_UIF);
 
-		// HSE_FREQ = 4..26 MHz, so HSE_RTC is between 130 kHz and 840 kHz
-		// timer overflows after 4 ms, max caps is 4300 / 8 for 32 MHz but max HSE freq is 26 MHz
-
-		uint32_t hs_freq = (caps * HSEDIV * (HSI_VALUE / 1024) + 32) / (65536 / 1024 / 8);
-		uint32_t hs_freq_MHz = (hs_freq + 500000) / 1000000;
+		const uint32_t hs_freq_MHz = (caps + 1) / 2;	// round
 
 		RCC->APB2ENR = 0;
 		RCC->APB2RSTR = RCC_APB2RSTR_TIM11RST;	// RST is independent from EN
