@@ -1,4 +1,22 @@
 /*
+ * lightweight USB device stack by gbm
+ * msc_bot_scsi.c - simple MSC BOT SCSI implementation
+ * Copyright (c) 2022..2025 gbm
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/*
 MSC requests (implemented in usb_class.c):
 - reset
 - get max LUN
@@ -15,8 +33,8 @@ CBW
 31 bytes, always sent as 31-byte packet
 3 * 4 B + 3 B + CBWCB
 include 15 B header and 1..16 B CBWCB
-header - little-endian ordering, long fields are size-aligned
-CBWCB - big endian, no size-alignment
+header uses little-endian ordering, long fields are size-aligned
+CBWCB uses big endian, no size-alignment
 
 CSW
 13 B, 3*4 B + 1B
@@ -28,6 +46,8 @@ all basic commands are 12 B long
 
 some remarks:
 https://aidanmocke.com/blog/2020/12/30/USB-MSD-1/
+
+Tested on U575, G0B1
 */
 
 #include <stdint.h>
@@ -39,25 +59,24 @@ https://aidanmocke.com/blog/2020/12/30/USB-MSD-1/
 #include "usb_hw_if.h"
 
 #if USBD_MSC
-#if 1
-// custom implementation of mass storage media
-#include "mini_msd.h"
-#define NUM_BLOCKS	SECCOUNT
-#define	LAST_LBA	(NUM_BLOCKS - 1u)
+
 #define BLK_SIZE	SECSIZE
+#define NUM_BLOCKS	SECCOUNT
+
+#if (__STDC_VERSION__ >= 202000L) && __has_include("mini_msd.h")
+
+// custom implementation of mass storage media
+// should provide media_init(), media_read(), media_write() routines and SECCOUNT, SESCIZE symbols
+#include "mini_msd.h"
 
 #else
-// demo - non-formatted mass storage in RAM; must be at least 64 KiB to be recognized by Windows
+// minimal demo - non-formatted mass storage in RAM; must be at least 64 KiB to be recognized by Windows 11
 #define SECSIZE	512u
 #define SECCOUNT	256u	// Works under Win7 if 16 or above
 
-#define NUM_BLOCKS	SECCOUNT
-#define	LAST_LBA	(NUM_BLOCKS - 1u)
-#define BLK_SIZE	SECSIZE
+alignas (uint64_t) static uint8_t media[NUM_BLOCKS][BLK_SIZE];	// media RAM image
 
-alignas (uint64_t) static uint8_t media[NUM_BLOCKS][BLK_SIZE];
-
-uint32_t blocks_read, blocks_written;
+uint32_t blocks_read, blocks_written;	// diagnostics
 
 static bool media_write(uint8_t lun, uint32_t blk, const uint8_t *buf)
 {
@@ -115,7 +134,7 @@ static inline uint32_t getBE32(const uint8_t *p)
 
 static const uint8_t inquiry_data[36] = {
 		0,	// device type: 0x00 - SBC Direct-access, 0x0e - RBC simplified direct access
-		0x00,	// bit 7 set -> removable media (required for formatting under Windows)
+		0x80,	// bit 7 set -> removable media (required for formatting under Windows)
 		2,	// ?
 		2,	// response data format
 		sizeof inquiry_data - 5,	// additional length
@@ -162,6 +181,7 @@ static const uint8_t  MSC_Mode_Sense6_data[MODE_SENSE6_LEN] = {
 	0x00,
 };
 #endif
+
 struct sense_data_ {
 	uint8_t error_code, segment_number, sense_key,
 		inf[4],	// 3..6
@@ -176,6 +196,8 @@ static struct sense_data_ sense_data = {
 		0,
 		.asl = sizeof(struct sense_data_) - 7
 };
+
+#define	LAST_LBA	(NUM_BLOCKS - 1u)
 
 static const uint8_t read_capacity_data[8] = {
 		LAST_LBA >> 24, LAST_LBA >> 16 & 0xff, LAST_LBA >> 8 & 0xff, LAST_LBA & 0xff,
@@ -207,7 +229,7 @@ static bool getparm10(void)
 			&& bsdata.devTransferLength == bsdata.cbw.dDataTransferLength;
 }
 
-// bitmap for SCSI commands recording
+// diagnostics - bitmap for SCSI commands recording
 volatile uint8_t rq[32];
 
 static void enable_out_ep(const struct usbdevice_ *usbd)
@@ -281,7 +303,7 @@ static void msc_bot_abort(const struct usbdevice_ *usbd)
 
 }
 
-		//SCSI_SENSE_ILLEGAL_REQUEST, INVALID_CDB, 0)
+		//SCSI_SENSE_ILLEGAL_REQUEST, INVALID_CDB, 0
 
 static void scsi_error(uint8_t sKey, uint8_t ASC)
 {
@@ -344,12 +366,12 @@ static void scsi_bad_command(const struct usbdevice_ *usbd)
 	msc_bot_abort(usbd);
 }
 
-
+// handle out ep traffic
 void msc_bot_out(const struct usbdevice_ *usbd, uint8_t epn, uint16_t len)
 {
 	switch (bsdata.state)
 	{
-	case BS_CBW:
+	case BS_CBW:	// command block
 		memcpy(&bsdata.cbw, bsdata.outbuf, CBW_SIZE);
 		// check if CBW valid
 		if (len == CBW_SIZE && bsdata.cbw.dSignature == CBW_SIG)

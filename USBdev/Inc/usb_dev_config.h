@@ -8,19 +8,19 @@
 
 #ifndef SIMPLE_CDC
 
-#define USBD_MSC 0	// not supported yet
+#define USBD_MSC 0
 #define USBD_CDC_CHANNELS	2
 #define USBD_PRINTER	0
-#define USBD_HID	1	// new, tested on U545
+#define USBD_HID	1
 
 //#define HID_PWR
 
 #else	// simple CDC
 
-#define USBD_MSC 0	// not supported yet
+#define USBD_MSC 0
 #define USBD_CDC_CHANNELS	1
 #define USBD_PRINTER	0
-#define USBD_HID	0	// new, tested on U545
+#define USBD_HID	0
 
 #endif	// SIMPLE_CDC
 
