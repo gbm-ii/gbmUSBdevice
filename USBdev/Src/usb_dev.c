@@ -16,7 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "usb_dev_config.h"
+#include <usb_dev_config.h>
 #include "usb_std_def.h"
 #include "usb_desc_def.h"
 #include "usb_dev.h"
@@ -133,6 +133,11 @@ static void USBdev_GetDescriptor(const struct usbdevice_ *usbd)
 // Moved to usb_class.c 
 void USBclass_HandleRequest(const struct usbdevice_ *usbd);
 
+static inline void reset_in_ep(struct epdata_ *epd)
+{
+	*epd = (struct epdata_){0, 0, 0, 0};
+}
+
 static void USBdev_HandleRequest(const struct usbdevice_ *usbd)
 {
 	USB_SetupPacket *req = &usbd->devdata->req;
@@ -184,12 +189,18 @@ static void USBdev_HandleRequest(const struct usbdevice_ *usbd)
 				USBdev_SendStatusOK(usbd);
 				usbd->devdata->devstate = USBD_STATE_ADDRESSED;
 				break;
+
 			case 1:	// config
 				usbd->devdata->configuration = 1;
 				usbd->hwif->SetCfg(usbd);
 				USBdev_SendStatusOK(usbd);
 				usbd->devdata->devstate = USBD_STATE_CONFIGURED;
+				for (uint8_t i = 0; i < USBD_NUM_INEPS; i++)
+				{
+					reset_in_ep(&usbd->inep[i]);
+				}
 				break;
+
 			default:
 				USBdev_CtrlError(usbd);	// stall on unhandled requests
 			}
@@ -199,9 +210,9 @@ static void USBdev_HandleRequest(const struct usbdevice_ *usbd)
 			if (req->bmRequestType.Recipient == USB_RQREC_ENDPOINT && req->wValue.b.l == USB_FEATSEL_ENDPOINT_HALT)
 			{
 				uint8_t epaddr = req->wIndex.b.l;
-				if ((epaddr & EP_IS_IN) && (epaddr & EPNUMMSK) < USBD_NUM_EPPAIRS)
+				if ((epaddr & EP_IS_IN) && (epaddr & EPNUMMSK) < USBD_NUM_INEPS)
 				{
-					usbd->inep[epaddr & EPNUMMSK] = (struct epdata_){0, 0, 0, 0};
+					reset_in_ep(&usbd->inep[epaddr & EPNUMMSK]);
 				}
 				usbd->hwif->ClrEPStall(usbd, epaddr);
 				USBclass_ClearEPStall(usbd, epaddr);
@@ -210,6 +221,7 @@ static void USBdev_HandleRequest(const struct usbdevice_ *usbd)
 			else
 				USBdev_CtrlError(usbd);	// stall on unhandled requests
 			break;
+
 		case USB_STDRQ_SET_FEATURE:
 			if (req->bmRequestType.Recipient == USB_RQREC_ENDPOINT && req->wValue.b.l == USB_FEATSEL_ENDPOINT_HALT)
 			{
@@ -219,6 +231,7 @@ static void USBdev_HandleRequest(const struct usbdevice_ *usbd)
 			else
 				USBdev_CtrlError(usbd);	// stall on unhandled requests
 			break;
+
 		default:
 			USBdev_CtrlError(usbd);	// stall on unhandled requests
 		}

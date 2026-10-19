@@ -137,8 +137,9 @@ enum usbd_epaddr_ {
 	USBD_IN_EPS	// no. of In endpoints
 };
 
-// no of endpoint pairs used in the application
-#define USBD_NUM_EPPAIRS	((USBD_IN_EPS & 0xf) > USBD_OUT_EPS ? (USBD_IN_EPS & 0xf) : USBD_OUT_EPS) 
+#define USBD_NUM_INEPS (USBD_IN_EPS & 0xf)
+// no. of endpoint pairs used in the application
+#define USBD_NUM_EPPAIRS	((USBD_NUM_INEPS) > USBD_OUT_EPS ? (USBD_NUM_INEPS) : USBD_OUT_EPS)
 
 #ifdef USE_COMMON_CDC_INT_IN_EP
 #define	CDC1_INT_IN_EP CDC0_INT_IN_EP

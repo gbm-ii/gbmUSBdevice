@@ -25,8 +25,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <usb_dev_config.h>
 
-#include "usb_dev_config.h"
 #include "usb_std_def.h"
 #include "usb_dev.h"
 #include "usb_hw_if.h"

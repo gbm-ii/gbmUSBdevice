@@ -53,8 +53,8 @@ Tested on U575, G0B1
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <usb_dev_config.h>
 #include "usb_dev.h"
-#include "usb_dev_config.h"
 #include "usb_class_msc_scsi.h"
 #include "usb_hw_if.h"
 

@@ -1,3 +1,4 @@
+
 /* 
  * lightweight USB device stack by gbm
  * usb_hw_g0.c - STM32C0, STM32G0, STM32H5xx, STM32U53x/54x USB device/host peripheral hardware access
@@ -37,7 +38,7 @@
 #endif
 
 #include <string.h>	// memset()
-#include "usb_dev_config.h"
+#include <usb_dev_config.h>
 #include "usb_desc_def.h"
 #include "usb_dev.h"
 #include "usb_hw_if.h"

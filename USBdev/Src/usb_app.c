@@ -22,7 +22,7 @@
 #include <stdio.h>
 
 #include "usb_hw.h"
-#include "usb_dev_config.h"
+#include <usb_dev_config.h>
 #include "usb_std_def.h"
 #include "usb_dev.h"
 #include "usb_hw_if.h"

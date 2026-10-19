@@ -16,7 +16,7 @@ Example code for other MCUs as well as more conventional, event loop-based versi
 By default, the example code creates a composite device made of generic text printer and two VCPs (only one VCP on F4 series due to only 3 application endpoints available in its USB OTG FS peripheral).
 The composite device demo compiles to little over 5 kB with `-Os` option.
 To use single VCOM (non-composite) demo, define the SIMPLE_CDC symbol in C Compiler preprocessor settings and set CDC_CHANNELS in 'usb_dev_config.h' to 1.
-The code is being rewritten to use some useful C23 features (like has_include). To use C23 with GCC 14 in STM32CubeIDE, set the C dialect to default and specify -std=c2x option manually.
+The code is being rewritten to use some useful C23 features (like has_include). To use C23 with GCC 14 in STM32CubeIDE, set the C dialect to default and specify -std=c23 option manually.
 
 To compile and run the example using STM32CubeIDE:
 

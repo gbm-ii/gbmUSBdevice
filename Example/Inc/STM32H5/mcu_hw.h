@@ -54,7 +54,7 @@
 
 static inline void ClockSetup(void)
 {
-	// initial clock after reset is HSI divided by 2 -> 32 MHz
+	// initial H5 clock after reset is HSI divided by 2 -> 32 MHz
 	// BUT ST-supplied SystemInit resets the divisor in RCC->CR HSIDIV field, so the clock freq is 64 MHz!
 	PWR->VOSCR = PWR_VOSCR_VOS;	// raise core voltage; 3 -> scale 0, for highest operating frequency
 	// osc and PLL setup
@@ -82,7 +82,7 @@ static inline void ClockSetup(void)
 	// wait for PLL ready
 	while (~RCC->CR & RCC_CR_PLL1RDY) ;
 	// no. of wait states = freq / 42 MHz; WRHIGHFREQ = freq / 84 MHz ? (See STM32H7B0 RM.)
-	FLASH->ACR = FLASH_ACR_PRFTEN | FLASH_ACR_WRHIGHFREQ_1 | (HCLK_FREQ / 42000000u) << FLASH_ACR_LATENCY_Pos;
+	FLASH->ACR = FLASH_ACR_PRFTEN | (HCLK_FREQ / 84000000u) << FLASH_ACR_WRHIGHFREQ_Pos | (HCLK_FREQ / 42000000u) << FLASH_ACR_LATENCY_Pos;
 	// enable instruction cache
 	while (ICACHE->SR & ICACHE_SR_BUSYF) ;
 	ICACHE->CR |= ICACHE_CR_EN;
