@@ -18,6 +18,8 @@ void USBapp_DeInit(void);
 void USBapp_Poll(void);
 
 void vcom0_putc(uint8_t c);
+uint16_t vcom_txavail(uint8_t ch);
+void vcom_txbuf_released(uint8_t ch);
 void vcom_write(uint8_t ch, const char *buf, uint16_t size);
 void vcom_putchar(uint8_t ch, char c);
 void vcom_putstring(uint8_t ch, const char *s);

@@ -240,6 +240,7 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 			| USB_EPR_STATTX(USB_EPSTATE_NAK);
 		SetEPRState(usbd, i, USB_EPRX_STAT | USB_EPTX_STAT | USB_EP_DTOG_TX | USB_EP_DTOG_RX, epstate);
 	}
+    reset_in_endpoints(usbd);
 }
 
 // disable app endpoints on set configuration 0 request

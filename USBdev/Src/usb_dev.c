@@ -195,10 +195,6 @@ static void USBdev_HandleRequest(const struct usbdevice_ *usbd)
 				usbd->hwif->SetCfg(usbd);
 				USBdev_SendStatusOK(usbd);
 				usbd->devdata->devstate = USBD_STATE_CONFIGURED;
-				for (uint8_t i = 0; i < USBD_NUM_INEPS; i++)
-				{
-					reset_in_ep(&usbd->inep[i]);
-				}
 				break;
 
 			default:

@@ -162,6 +162,21 @@ const struct vcomcfg_ vcomcfg[USBD_CDC_CHANNELS] = {
 #endif	// USBD_CDC_CHANNELS > 1
 };
 
+// return no. of bytes available in tx buffer (IN endpoint); to be called by app
+uint16_t vcom_txavail(uint8_t ch)
+{
+	if (ch < USBD_CDC_CHANNELS)
+	{
+		struct cdc_data_ *cdp = &cdc_data[ch];
+		struct cdc_session_ *cds = &cdp->session;
+		return CDC_DATA_EP_SIZE - cds->TxLength;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
 // write to VCOM data in endpoint, called by application
 void vcom_write(uint8_t ch, const char *buf, uint16_t size)
 {
@@ -186,10 +201,13 @@ void vcom_write(uint8_t ch, const char *buf, uint16_t size)
 				if (cds->TxLength == CDC_DATA_EP_SIZE)
 				{
 					cds->TxTout = 0;
+					cds->TxBusy = 1;
 					NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);
 				}
 				else
+				{
 					cds->TxTout = TX_TOUT;
+				}
 				__enable_irq();
 			}
 		}
@@ -407,7 +425,7 @@ void usbdev_tick(void)
 		struct cdc_data_ *cdcp = &cdc_data[ch];
 		struct cdc_session_ *cds = &cdcp->session;
 
-		if (cds->connstart_timer && --cds->connstart_timer == 0)
+		if (!cds->connected && cds->connstart_timer && --cds->connstart_timer == 0)
 		{
 			cds->connected = 1;
 			VCP_ConnStatus(ch, 1);
@@ -551,6 +569,12 @@ void VCOM0_rx_IRQHandler(void)
 	VCOM_rx_IRQHandler(0);
 }
 
+// application callback
+__attribute__ ((weak)) void vcom_txbuf_released(uint8_t ch)
+{
+	(void) ch;
+}
+
 // transmit handler, must have the same priority as USB hw interrupt
 void VCOM_tx_IRQHandler(uint8_t ch)
 {
@@ -560,10 +584,14 @@ void VCOM_tx_IRQHandler(uint8_t ch)
 //	if (cdp->TxLength)
 	{
 		if (cdp->session.TxLength == CDC_DATA_EP_SIZE)
+		{
 			NVIC_SetPendingIRQ(vcomcfg[ch].tx_irqn);	// another packet must follow, data or ZLP
+		}
 		USBdev_SendData(&usbdev, ConfigDesc.cdc[ch].cdcdesc.cdcin.bEndpointAddress,
 			cdp->TxData, cdp->session.TxLength, 0);
 		cdp->session.TxLength = 0;	// clear counter
+		cdp->session.TxBusy = 0;
+		vcom_txbuf_released(ch);
 	}
 }
 

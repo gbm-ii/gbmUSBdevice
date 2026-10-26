@@ -358,6 +358,7 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 			USBhw_EnableRx(usbd, i);
 		}
 	}
+    reset_in_endpoints(usbd);
 }
 
 // disable app endpoints on set configuration 0 request

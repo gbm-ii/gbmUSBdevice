@@ -204,6 +204,7 @@ struct cdc_session_ {
 	volatile uint8_t RxIdx;
 	volatile uint8_t TxLength;
 	uint8_t TxTout;
+	bool TxBusy;
 };
 
 // persisent data
