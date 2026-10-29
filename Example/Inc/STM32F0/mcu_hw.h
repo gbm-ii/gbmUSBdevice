@@ -26,6 +26,9 @@
 	#include "board.h"
 #endif
 
+// must be included after board defs!
+#include "stm32gpioutil.h"
+
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
  * in a header file.

@@ -25,10 +25,13 @@
 #if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
 	#include "board.h"
 #endif
-//#include "boards/stm32nucleo64.h"
 
 // must be included after board defs!
-#include "stm32portutil.h"
+#include "stm32gpioutil.h"
+
+#ifndef HCLK_FREQ
+#define HCLK_FREQ	48000000u
+#endif
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
