@@ -57,40 +57,17 @@ extern const struct USBhw_services_ l0_fs_services;
 
 #elif defined(STM32G0B1xx)
 #include "stm32g0xx.h"
-#define USB_NEPPAIRS	8u	// no. of endpoint pairs supported by hardware
-#define EPNUMMSK	7u
-extern const struct USBhw_services_ g0_fs_services;
-#define usb_hw_services	g0_fs_services
-
+#define USB_DRD_G0
 #define USB_IRQn	USB_UCPD1_2_IRQn
 #define USB_IRQHandler	USB_UCPD1_2_IRQHandler
 
-#define USB_PMA_OFFSET ((USB_DRD_PMAADDR) - (USB_DRD_BASE))
-
 #elif defined(STM32U073xx) || defined(STM32U083xx)
 #include "stm32u0xx.h"
-#define USB_NEPPAIRS	8u	// no. of endpoint pairs supported by hardware
-#define EPNUMMSK	7u
-extern const struct USBhw_services_ g0_fs_services;
-#define usb_hw_services	g0_fs_services
-
-#define USB_IRQn	USB_DRD_FS_IRQn
-#define USB_IRQHandler	USB_DRD_FS_IRQHandler
-
-#define USB_BASE	USB_DRD_BASE
-#define USB_PMA_OFFSET ((USB_DRD_PMAADDR) - (USB_DRD_BASE))
+#define USB_DRD_G0
 
 #elif defined(STM32C071xx)
 #include "stm32c0xx.h"
-#define USB_NEPPAIRS	8u	// no. of endpoint pairs supported by hardware
-#define EPNUMMSK	7u
-extern const struct USBhw_services_ g0_fs_services;
-#define usb_hw_services	g0_fs_services
-
-#define USB_IRQn	USB_DRD_FS_IRQn
-#define USB_IRQHandler	USB_DRD_FS_IRQHandler
-
-#define USB_PMA_OFFSET ((USB_DRD_PMAADDR) - (USB_DRD_BASE))
+#define USB_DRD_G0
 
 #elif defined(STM32H503xx) || defined(STM32H523xx) || defined(STM32H533xx) || defined(STM32H563xx)
 #include "stm32h5xx.h"
@@ -110,7 +87,8 @@ extern const struct USBhw_services_ g0_fs_services;
 #endif
 #define USB_PMA_OFFSET ((USB_DRD_PMAADDR_NS) - (USB_DRD_BASE_NS))
 
-#elif defined(STM32U535xx) || defined(STM32U545xx)
+#elif defined(STM32U535xx) || defined(STM32U545xx) \
+
 #include "stm32u5xx.h"
 // like G0B1
 #define USB_NEPPAIRS	8u	// no. of endpoint pairs supported by hardware
@@ -124,6 +102,11 @@ extern const struct USBhw_services_ g0_fs_services;
 #define USB_BASE	USB_DRD_BASE_NS
 #define USB_PMA_OFFSET ((USB_DRD_PMAADDR_NS) - (USB_DRD_BASE_NS))
 
+#elif defined(STM32C531xx) || defined(STM32C551xx) || defined(STM32C5A3xx)
+#include "stm32c5xx.h"
+#define USB_DRD_G0
+#define USB_PMA_OFFSET ((USB_DRD_PMAADDR) - (USB_DRD_FS_BASE))
+#define USB_BASE	USB_DRD_FS_BASE
 
 // USB OTG
 
@@ -169,6 +152,20 @@ extern const struct USBhw_services_ l4_otgfs_services;
 #endif
 
 // implementation-specific defs
+#ifdef USB_DRD_G0
+#define USB_NEPPAIRS	8u	// no. of endpoint pairs supported by hardware
+#define EPNUMMSK	7u
+extern const struct USBhw_services_ g0_fs_services;
+#define usb_hw_services	g0_fs_services
+#ifndef USB_PMA_OFFSET
+#define USB_PMA_OFFSET ((USB_DRD_PMAADDR) - (USB_DRD_BASE))
+#endif
+#ifndef USB_IRQn
+#define USB_IRQn	USB_DRD_FS_IRQn
+#define USB_IRQHandler	USB_DRD_FS_IRQHandler
+#endif
+#endif
+
 #ifdef USB_OTG_FS_PERIPH_BASE	// F4, L4 series
 #define USB_BASE	USB_OTG_FS_PERIPH_BASE
 #define USB_IRQn	OTG_FS_IRQn

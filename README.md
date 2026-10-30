@@ -3,30 +3,13 @@
 
 A compact, simple, HAL-free USB device stack for easy creation of composite devices with STM32 MCUs.
 
-Supported MCUs: STM32: F0x2, F103, L0, L4, F4 (OTG FS only), G0B1, H5x3, L5, U0x3, U535..585, C071.
-Planned support: STM32U59x and above, STM32C5, STM32H5E, CH32X03x.
+Supported MCUs: STM32: F0x2, F103, L0, L4, F4 (OTG FS only), G0B1, H5x3, L5, U0x3, U535..585, C071, C5.
+Planned support: STM32U59x and above, STM32H5E, CH32X03x.
 
 Supported USB classes: CDC ACM (VCP), Printer, HID, MSC BOT SCSI.
 Planned: DFU?.
 
-## Quick start using STM32CubeIDE
-
-Out-of-the-box demos are currently available for STM32F0x2, F103, F401, G0B1, L4, H503/523/533, U083, U535/545, U575, C071. The demos uses pure event-driven approach with software-generated interrupts.
-Example code for other MCUs as well as more conventional, event loop-based version of demo will be added soon.
-By default, the example code creates a composite device made of generic text printer and two VCPs (only one VCP on F4 series due to only 3 application endpoints available in its USB OTG FS peripheral).
-The composite device demo compiles to little over 5 kB with `-Os` option.
-To use single VCOM (non-composite) demo, define the SIMPLE_CDC symbol in C Compiler preprocessor settings and set CDC_CHANNELS in 'usb_dev_config.h' to 1.
-The code is being rewritten to use some useful C23 features (like has_include). To use C23 with GCC 14 in STM32CubeIDE, set the C dialect to default and specify -std=c23 option manually.
-
-To compile and run the example using STM32CubeIDE:
-
-- Download or clone the https://github.com/gbm-ii/gbmUSBdevice and https://github.com/gbm-ii/STM32_Inc repositories to your computer.
-- Create a *New STM32 project* (STM32Cube type) for your MCU model. Do not change any settings; just generate code for the default configuration.
-- Copy or link the `gbmUSBdevice` folder to include it in your project. Set the folder as source folder
- (right click on the folder name, *Properties - C/C++ Build* - uncheck *Exclude resource from build*).
-- Copy or link the `STM32_Inc` folder to your project.
-- Remove or rename the `main()` function in CubeMX-generated `main.c` file - `main()` from gbmUSBdevice example will be used instead of it.
-- Add the `gbmUSBdevice/Example/Inc/<MCU_series>`, `gbmUSBdevice/USBdev/Inc` and `STM32_Inc` folders to the inlcude path; they should appear in the include path in exactly that order.
+The code is being rewritten to use some useful C23 features (like __has_include()). To use C23 with GCC 14 in STM32CubeIDE, set the C dialect to default and specify -std=c23 option manually.
 
 To see the demo in action:
 
@@ -35,6 +18,44 @@ To see the demo in action:
 - The text typed in a terminal window is echoed. The text printed to the printer is displayed in VCOM0 terminal window.
 
 Composite device configuration may be changed by editing `usb_dev_config.h` file.
+
+## Quick start
+
+Out-of-the-box demos are currently available for STM32F0x2, F103, F401, G0B1, L4, H503/523/533, U083, U535/545, U575, C071, C5A3. The demos uses pure event-driven approach with software-generated interrupts.
+Example code for other MCUs as well as more conventional, event loop-based version of demo will be added soon.
+By default, the example code creates a composite device made of generic text printer and two VCPs (only one VCP on F4 series due to only 3 application endpoints available in its USB OTG FS peripheral).
+The composite device demo compiles to little over 5 kB with `-Os` option.
+To use single VCOM (non-composite) demo, define the SIMPLE_CDC symbol in C Compiler preprocessor settings and set CDC_CHANNELS in 'usb_dev_config.h' to 1.
+The F4 clock setup code supports automatic detection of HSE configuration and frequency, so the same code should work correctly on any F401 board - tested with F401 Discovery, Nucleo-64 and BlackPill.
+
+Te see gbmUSBdevice in action:
+- Download or clone the https://github.com/gbm-ii/gbmUSBdevice and https://github.com/gbm-ii/STM32_Inc repositories to your computer.
+- Create the basic project for your MCU using CubeMX or CubeMX2. Do not change any settings; just generate code for the default configuration.
+- Remove or rename the `main()` function in CubeMX-generated `main.c` file - `main()` from gbmUSBdevice example will be used instead of it.
+- Configure and compile the project as described below for STM32CubeIDE or VS Code.
+
+### STM32CubeIDE project
+
+To compile and run the example using STM32CubeIDE:
+
+- Create a new project (STM32Cube type) for your MCU model. 
+- Copy or link the `gbmUSBdevice` folder to include it in your project. Set the folder as source folder
+ (right click on the folder name, *Properties - C/C++ Build* - uncheck *Exclude resource from build*).
+- Copy or link the `STM32_Inc` folder to your project.
+- Add the `gbmUSBdevice/Example/Inc/<MCU_series>`, `gbmUSBdevice/USBdev/Inc` and `STM32_Inc` folders to the inlcude path; they should appear in the include path in exactly that order.
+
+### CMake-based project
+
+Add these to the main CMakeLists.txt, adjusting the values in set() commands below.
+COMPONENTDIR is the folder containing folders STM32_Inc and gbmUSBdevice
+
+```
+set(MCUFAMILY STM32C5)
+set(COMPONENTDIR $ENV{USERPROFILE}/Documents/uC)
+
+add_subdirectory(${COMPONENTDIR}/STM32_Inc STM32_Inc)
+add_subdirectory(${COMPONENTDIR}/gbmUSBdevice usbdevice)
+```
 
 ## Using gbmUSBdevice with HAL & CubeMX-generated code
 
@@ -45,24 +66,24 @@ Before calling `USBapp_Init()`:
 	- PLL fed by HSI synchronized to LSE (STM32L47x, esp. Nucleo-L476 board)
 - USB peripheral pins must be configured properly and the USB module must be activated. In the examples it is done by `USBhwSetup()`. The replacement code may be generated by CubeMX if USB module is activated in device mode without selecting any USB-related middleware.
 
-The F4 clock setup code supports automatic detection of HSE configuration and frequency, so the same code should work correctly on any F401 board - tested with F401 Discovery, Nucleo-64 and BlackPill.
- 
- ## CDC ACM (VCP) implementation
+## Class-specific information
+
+### CDC ACM (VCP) implementation
  
 The Virtual COM port is meant to be compatible with CDC 1.2 ACM (no AT commands) specification, supporting the Set_Line_Coding, Set_Control_Line_State, Get_Line_Coding requests
 and Serial_State notification.
 
-## Printer
+### Printer
 
 If enabled in `usb_dev_config.h`, Generic Text Printer device is created, which is recognized and handled by Windows without a need for a driver. 
 
-## HID example
+### HID example
 
 The HID example implements a keyboard device using one button/key and one LED. The hardware connection must be visible in the main file.
 The example code for selected STM32 models uses Nucleo, F103 BluePill(Plus) or F4x1 BlackPill board button and LED. Once connected to a PC, the LED serves as ScrollLock indicator
 and pressing a button causes the asterisk character to be input to the host computer. HID keyboard demo was tested on U0, U545, H5x3 and F401.
 
-## MSC BOT SCSI example
+### MSC BOT SCSI example
 
 The MSC example code supports RAM-based device. For formatting under Windows 11, the volume must have the size of at least 64 KiB. The minimum size of preformatted volume supported by Windows 11 is 8 KiB.
 

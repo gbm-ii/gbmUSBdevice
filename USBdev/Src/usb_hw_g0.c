@@ -1,8 +1,8 @@
 
 /* 
  * lightweight USB device stack by gbm
- * usb_hw_g0.c - STM32C0, STM32G0, STM32H5xx, STM32U53x/54x USB device/host peripheral hardware access
- * Copyright (c) 2022..2024 gbm
+ * usb_hw_g0.c - STM32C0, STM32G0, STM32H5xx, STM32U53x/54x, STM32C5 USB device/host peripheral hardware access
+ * Copyright (c) 2022..2026 gbm
  * 
  * This program is free software: you can redistribute it and/or modify  
  * it under the terms of the GNU General Public License as published by  
@@ -18,13 +18,16 @@
  */
 #if defined(STM32G0B1xx) \
 	|| defined(STM32H503xx) || defined(STM32H523xx) || defined(STM32H533xx) \
+	|| defined(STM32H543xx) || defined(STM32H553xx) \
 	|| defined(STM32H562xx) || defined(STM32H563xx) \
 	|| defined(STM32U535xx) || defined(STM32U545xx) \
-	|| defined(STM32U073xx) || defined(STM32U083xx) || defined(STM32C071xx)
+	|| defined(STM32U073xx) || defined(STM32U083xx) || defined(STM32C071xx) \
+	|| defined(STM32C531xx) || defined(STM32C551xx) || defined(STM32C5A3xx)
 
 #ifdef STM32G0B1xx
 #include "stm32g0xx.h"
 #elif defined(STM32H503xx) || defined(STM32H523xx) || defined(STM32H533xx) \
+	|| defined(STM32H543xx) || defined(STM32H553xx) \
 	|| defined(STM32H562xx) || defined(STM32H563xx)
 #include "stm32h5xx.h"
 #elif defined(STM32U535xx) || defined(STM32U545xx)
@@ -33,6 +36,8 @@
 #include "stm32u0xx.h"
 #elif defined(STM32C071xx)
 #include "stm32c0xx.h"
+#elif defined(STM32C531xx) || defined(STM32C551xx) || defined(STM32C5A3xx)
+#include "stm32c5xx.h"
 #else
 #error unsupported MCU type
 #endif
@@ -178,8 +183,8 @@ static uint16_t USBhw_ReadEPSize(const struct usbdevice_ *usbd, uint8_t epaddr)
 #define USB_EPR_STATRX(a) ((a) << 12)
 // mask for config bits - use when toggling individual flags to avoid changing cfg bits
 // change to USB_CHEP_REG_MASK defined in std header
-#define USB_EPR_CFG	(USB_CHEP_ADDR | USB_EP_KIND | USB_EP_UTYPE | USB_CHEP_DEVADDR)
-#define USB_EPR_FLAGS	(USB_EP_VTTX | USB_EP_VTRX | USB_CHEP_NAK | USB_CHEP_ERRTX | USB_CHEP_ERRRX)
+#define USB_EPR_CFG	(USB_CHEP_ADDR | USB_EP_KIND | USB_CHEP_UTYPE | USB_CHEP_DEVADDR)
+#define USB_EPR_FLAGS	(USB_CHEP_VTTX | USB_CHEP_VTRX | USB_CHEP_NAK | USB_CHEP_ERRTX | USB_CHEP_ERRRX)
 
 static void SetEPRState(const struct usbdevice_ *usbd, uint8_t epaddr, uint32_t statemask, uint32_t newstate)
 {
@@ -410,6 +415,11 @@ static void USBhw_ReadRxData(const struct usbdevice_ *usbd, uint8_t epn)
 	}
 	usb->BUFDESC[epn].RxAddressCount.count = CNT_INVALID;
 }
+
+#ifndef USB_EP_SETUP
+// for C5 compatibility
+#define USB_EP_SETUP USB_CHEP_SETUP
+#endif
 
 void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 {
