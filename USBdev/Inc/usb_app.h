@@ -1,5 +1,5 @@
 /*
- * usb_app.h
+ * usb_app.h - interface between gbmUSBdevice and the application
  *
  *  Created on: Dec 5, 2023
  *      Author: gbm
@@ -18,8 +18,8 @@ void USBapp_DeInit(void);
 void USBapp_Poll(void);
 
 void vcom0_putc(uint8_t c);
-uint16_t vcom_txavail(uint8_t ch);
-void vcom_txbuf_released(uint8_t ch);
+uint16_t vcom_txavail(uint8_t ch);  // return free capacity of tx buffer
+void vcom_txbuf_released(uint8_t ch);   // callback to be defined by app if needed
 void vcom_write(uint8_t ch, const char *buf, uint16_t size);
 void vcom_putchar(uint8_t ch, char c);
 void vcom_putstring(uint8_t ch, const char *s);
@@ -30,8 +30,9 @@ void vcom_enable_rx_processing(uint8_t ch);
 
 uint8_t vcom_process_input(uint8_t ch, uint8_t c);	// defined as weak in usb_app.c, redefine for real use
 
+// vcom_process_input() retun value bit masks
 #define PIRET_PROMPTRQ	1u
 #define PIRET_AUTONUL	0x10
-#define PIRET_DISABLERX	0x10
+#define PIRET_DISABLERX	0x20
 
 #endif /* INC_USB_APP_H_ */

@@ -19,15 +19,10 @@
 #ifndef INC_MCU_HW_H_
 #define INC_MCU_HW_H_
 
-#include <stdbool.h>
 #include "stm32c0yy.h"
-#include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
 #if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
 	#include "board.h"
 #endif
-
-// must be included after board defs!
-#include "stm32gpioutil.h"
 
 #ifndef HCLK_FREQ
 #define HCLK_FREQ	48000000u

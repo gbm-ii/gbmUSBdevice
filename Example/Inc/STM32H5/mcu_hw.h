@@ -25,9 +25,6 @@
 	#include "board.h"
 #endif
 
-// must be included after board defs!
-#include "stm32gpioutil.h"
-
 /*
  * board definition file may include the definitions:
    #define USE_HSE	// define to use HSE
@@ -46,7 +43,7 @@
  * The routines below are supposed to be called only once, so they are defined as static inline
  * in a header file.
  */
-
+#define FLASH_WS_FREQ_STEP	42000000u
 /*
  * Minimal clock setup routine for STM32H5 (tested on Nucleo-H503)
  * The routine may be replaced by any user-writen or CubeMX-generated HAL routine providing stable 48 MHz clock to USB peripheral.
@@ -82,7 +79,7 @@ static inline void ClockSetup(void)
 	// wait for PLL ready
 	while (~RCC->CR & RCC_CR_PLL1RDY) ;
 	// no. of wait states = freq / 42 MHz; WRHIGHFREQ = freq / 84 MHz ? (See STM32H7B0 RM.)
-	FLASH->ACR = FLASH_ACR_PRFTEN | (HCLK_FREQ / 84000000u) << FLASH_ACR_WRHIGHFREQ_Pos | (HCLK_FREQ / 42000000u) << FLASH_ACR_LATENCY_Pos;
+	FLASH->ACR = FLASH_ACR_PRFTEN | (HCLK_FREQ / FLASH_WS_FREQ_STEP / 2) << FLASH_ACR_WRHIGHFREQ_Pos | (HCLK_FREQ / FLASH_WS_FREQ_STEP) << FLASH_ACR_LATENCY_Pos;
 	// enable instruction cache
 	while (ICACHE->SR & ICACHE_SR_BUSYF) ;
 	ICACHE->CR |= ICACHE_CR_EN;
@@ -105,9 +102,12 @@ static inline void USBhwSetup(void)
 	PWR->USBSCR = PWR_USBSCR_USB33SV;
 #endif
 	RCC->APB2ENR |= RCC_APB2ENR_USBEN;
-
-	// no need to setup GPIOA, it is enough to activate USB
+	// With H5 series, MODER and OSPEEEDR value is "don't care" for USB DRD data pins
 }
+
+#if 0
+// must be included after board defs!
+#include "stm32gpioutil.h"
 
 static inline void xLED_Btn_Setup(void)
 {
@@ -128,5 +128,6 @@ static inline void xLED_Btn_Setup(void)
 #endif
 #endif
 }
+#endif
 
 #endif /* INC_MCU_HW_H_ */

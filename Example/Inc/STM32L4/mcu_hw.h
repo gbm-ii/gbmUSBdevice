@@ -25,12 +25,7 @@
 #if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
 	#include "board.h"
 	// If board.h is present, HSE_VALUE and RCC_CR_HSESEL must be defined in board.h.
-#else
-//#include "boards/stm32nucleo64.h"
 #endif
-
-// must be included after board defs!
-#include "stm32gpioutil.h"
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline

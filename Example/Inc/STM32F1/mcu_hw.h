@@ -19,15 +19,11 @@
 #ifndef INC_MCU_HW_H_
 #define INC_MCU_HW_H_
 
-#include <stdbool.h>
 #include "stm32f10y.h"
 #include "bf_reg.h"
 #if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
 	#include "board.h"
 #endif
-
-// must be included after board defs!
-#include "stm32gpioutil.h"
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
@@ -35,7 +31,6 @@
  */
  
 // F103 BluePill board, 8 MHz osc
-
 #define HCLK_FREQ	72000000u
 #define USB_ENUM_DELAY_ms	50u
 
@@ -57,11 +52,6 @@ static inline void ClockSetup(void)
     //while ((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_PLL);    /* Wait till PLL is used as system clock source */
 }
 
-static inline void noHAL_Delay(uint8_t ms)
-{
-	SysTick_Delay(HCLK_FREQ / 1000u * ms);
-}
-
 // USB peripheral enable & pin configuration
 static inline void USBhwSetup(void)
 {
@@ -69,10 +59,11 @@ static inline void USBhwSetup(void)
 	AFIO->MAPR = AFIO_MAPR_SWJ_CFG_JTAGDISABLE;	// SWD only
 
 	// Pull down PA12 (USBDP) to disable USB pullup detection - needed for possible re-enumeration
+	// after reset, PA12 output level set in ODR is 0
 	BF4F(GPIOA->CRH, 12) = GPIO_CR_OOD_S;
 	
 	// USB enumeration delay - replace with HAL_Delay if HAL is used
-	noHAL_Delay(USB_ENUM_DELAY_ms);
+	SysTick_Delay(HCLK_FREQ / 1000u * USB_ENUM_DELAY_ms);
 	
     RCC->APB1ENR |= RCC_APB1ENR_USBEN;	// activate USB, pulling up DP
 }

@@ -31,7 +31,7 @@ The F4 clock setup code supports automatic detection of HSE configuration and fr
 Te see gbmUSBdevice in action:
 - Download or clone the https://github.com/gbm-ii/gbmUSBdevice and https://github.com/gbm-ii/STM32_Inc repositories to your computer.
 - Create the basic project for your MCU using CubeMX or CubeMX2. Do not change any settings; just generate code for the default configuration.
-- Remove or rename the `main()` function in CubeMX-generated `main.c` file - `main()` from gbmUSBdevice example will be used instead of it.
+- Remove or rename the `main()` function in CubeMX-generated `main.c` file - `main()` from gbmUSBdevice example will be used instead of it. Alternatively, you may set *Do not generate the main()* option in CubeMX.
 - Configure and compile the project as described below for STM32CubeIDE or VS Code.
 
 ### STM32CubeIDE project
@@ -46,7 +46,7 @@ To compile and run the example using STM32CubeIDE:
 
 ### CMake-based project
 
-Add these to the main CMakeLists.txt, adjusting the values in set() commands below.
+To compile and run the example using VS Code or any other CMake-drive environment, add the following lines to the main CMakeLists.txt, adjusting the values in set() commands below.
 COMPONENTDIR is the folder containing folders STM32_Inc and gbmUSBdevice
 
 ```
@@ -86,4 +86,3 @@ and pressing a button causes the asterisk character to be input to the host comp
 ### MSC BOT SCSI example
 
 The MSC example code supports RAM-based device. For formatting under Windows 11, the volume must have the size of at least 64 KiB. The minimum size of preformatted volume supported by Windows 11 is 8 KiB.
-

@@ -6,9 +6,16 @@
   ******************************************************************************
   */
 
-#include "mcu_hw.h"		// in Example/Inc/<mcu_series> directory
-#include "usb_app.h"	// in USBdevice/Inc
+/*
+ * mcu_hw.h includes board.h if it is present
+ * board.h defines basic board features (clocking, port connections, etc.).
+ * To run demo on one of common STM32 boards, like Nucleo, Discovery or any "pill",
+ * create board.h and include in it one of files found in STM32_Inc/boards.
+ */
 #include <stdbool.h>
+#include "mcu_hw.h"		// in Example/Inc/<mcu_series> directory
+#include "stm32gpioutil.h"
+#include "usb_app.h"	// in USBdevice/Inc
 
 void LED_Set(bool on)
 {

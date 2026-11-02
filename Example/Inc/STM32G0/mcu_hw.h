@@ -20,21 +20,19 @@
 #define INC_MCU_HW_H_
 
 #include "stm32g0yy.h"
-#include "bf_reg.h"		// from github.com/gbm-ii/STM32_Inc
 #if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
 	#include "board.h"
-	// If board.h is present, HSE_VALUE and RCC_CR_HSESEL must be defined in board.h.
-#else
-#include "boards/stm32nucleo64.h"
 #endif
 
-// must be included after board defs!
-#include "stm32gpioutil.h"
+#ifndef HCLK_FREQ
+#define HCLK_FREQ	64000000u
+#endif
 
 /*
  * The routines below are supposed to be called only once, so they are defined as static inline
  * in a header file.
  */
+#define FLASH_WS_FREQ_STEP	24000000u
 
 // minimal clock setup required for USB device operation
 static inline void ClockSetup(void)
@@ -44,7 +42,7 @@ static inline void ClockSetup(void)
 	// PWR Range 1 is the default - ok for 64 MHz
 	RCC->PLLCFGR = RCC_PLLCFGR_PLLNV(8) | RCC_PLLCFGR_PLLRV(2) | RCC_PLLCFGR_PLLREN | RCC_PLLCFGR_PLLSRC_HSI;
 	RCC->CR |= RCC_CR_HSI48ON | RCC_CR_PLLON;
-	FLASH->ACR |= FLASH_ACR_PRFTEN | 2u << FLASH_ACR_LATENCY_Pos; // 2 WS up to 64 MHz
+	FLASH->ACR |= FLASH_ACR_PRFTEN | (HCLK_FREQ / FLASH_WS_FREQ_STEP) << FLASH_ACR_LATENCY_Pos; // 2 WS up to 64 MHz
     RCC->APBENR1 |= RCC_APBENR1_CRSEN;
     CRS->CR |= CRS_CR_AUTOTRIMEN | CRS_CR_CEN;	// sync HSI48 to USB SOF
 
