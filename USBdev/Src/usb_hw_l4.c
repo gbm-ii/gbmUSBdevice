@@ -17,14 +17,9 @@
  */
 
 // verified on F401, L476, L496, L4R5, U575
-#if defined(STM32F401xC) \
-	|| defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx) \
-	|| defined(STM32U575xx) || defined(STM32U585xx) || defined(STM32U5A5xx)
+#include "mcutype.h"
 
-#if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx) \
-	|| defined(STM32U575xx) || defined(STM32U585xx) || defined(STM32U5A5xx)
-#define NEW_OTG
-#endif
+#ifdef USB_OTG_FS_L4
 
 #include <string.h>
 //#include "usb_dev_config.h"
@@ -32,13 +27,15 @@
 #include "usb_dev.h"
 #include "usb_hw_if.h"
 
-#if defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx) \
-	|| defined(STM32U575xx) || defined(STM32U585xx) || defined(STM32U5A5xx)
+#if defined(STM32L4) || defined(STM32U5)
+#define NEW_OTG
+
 // fix for U5A5
 #ifndef USB_OTG_GRXSTSR_EPNUM_Pos
 #define USB_OTG_GRXSTSR_EPNUM_Pos USB_OTG_GRXSTSR_EPNUM_CHNUM_Pos
 #define USB_OTG_GRXSTSR_EPNUM_Msk USB_OTG_GRXSTSR_EPNUM_CHNUM_Msk
 #endif
+
 #ifndef USB_OTG_GRXSTSP_EPNUM_Pos
 #define USB_OTG_GRXSTSP_EPNUM_Pos USB_OTG_GRXSTSP_EPNUM_CHNUM_Pos
 #define USB_OTG_GRXSTSP_EPNUM_Msk USB_OTG_GRXSTSP_EPNUM_CHNUM_Msk

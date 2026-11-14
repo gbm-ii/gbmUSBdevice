@@ -38,7 +38,7 @@
  */
 
 /*
- * Minimal clock setup routine for STM32U5 (-Q version with SMPS, tested on Nucleo-U545 and Nucleo-U575))
+ * Minimal clock setup routine for STM32U3
  * The routine may be replaced by any user-writen or CubeMX-generated HAL routine providing stable 48 MHz clock to USB peripheral.
  */
 
@@ -47,59 +47,42 @@
 #endif
 
 // frequency step for computing Flash wait states
+#if defined(STM32U375xx) || defined(STM32U385xx) || defined(STM32U356xx) || defined(STM32U366xx)
 #define FLASH_WS_FREQ_STEP	32000000u
+#else // 3B5, 3C5
+#define FLASH_WS_FREQ_STEP	25000000u
+#endif
 
 static inline void ClockSetup(void)
 {
-	// after reset, 4 MHz MSIS is used as HCLK
-	RCC->AHB3ENR |= RCC_AHB3ENR_PWREN;
-	PWR->VOSR |= PWR_VOSR_BOOSTEN | PWR_VOSR_VOS;	// raise core voltage; 3 -> scale 1, for highest operating frequency
-	PWR->CR3 |= PWR_CR3_REGSEL;	// turn on SMPS
-	while (~PWR->SVMSR & PWR_SVMSR_REGS) ;	// wait for SMPS ready
+	// after reset, 12 MHz MSIS 1 div by 2 is used as HCLK
+	RCC->AHB1ENR2 |= RCC_AHB1ENR2_PWREN;
+//	PWR->CR3 |= PWR_CR3_REGSEL;	// turn on SMPS
+//	while (~PWR->SVMSR & PWR_SVMSR_REGS) ;	// wait for SMPS ready
 
-#if !defined(RCC_AHB2ENR1_OTGHSPHYEN)
+	RCC->CFGR4 = RCC_CFGR4_BOOSTSEL_0;	// select MSIS as booster clock
+	PWR->VOSR = PWR_VOSR_BOOSTEN | PWR_VOSR_R1EN;
+
 	// osc and PLL setup for MCUs up to U58x
 	RCC->CR |= RCC_CR_HSI48ON;
 
 	RCC->APB1ENR1 |= RCC_APB1ENR1_CRSEN;
 
 	while (~RCC->CR & RCC_CR_HSI48RDY) ;
-	// HCLK from PLL1R, PLL input clock 4..16 MHz, PLL freq 128..544 MHz
-	// M = 1, N = 80, P = 2
-	RCC->PLL1DIVR = (2u - 1) << RCC_PLL1DIVR_PLL1P_Pos | (2u - 1) << RCC_PLL1DIVR_PLL1Q_Pos | (2u - 1) << RCC_PLL1DIVR_PLL1R_Pos
-		| (HCLK_FREQ / 2000000u - 1) << RCC_PLL1DIVR_PLL1N_Pos;
-	RCC->PLL1CFGR = RCC_PLL1CFGR_PLL1SRC_0 | (1u - 1) << RCC_PLL1CFGR_PLL1M_Pos | RCC_PLL1CFGR_PLL1REN;	// MSIS, no div
-	RCC->CR |= RCC_CR_PLL1ON;
 
 	CRS->CR |= CRS_CR_AUTOTRIMEN | CRS_CR_CEN;	// HIS48 sync to USB SOF
-#else
-	// U59x, 5Ax using 16 MHz HSE (Nucleo-U5A5)
-	RCC->CR |= RCC_CR_HSEON;
-	while (~RCC->CR & RCC_CR_HSERDY) ;
-
-	// HCLK from PLL1R, PLL input clock 4..16 MHz, PLL freq 128..544 MHz
-	// M = 1, N = 80, P = 2
-	RCC->PLL1DIVR = (2u - 1) << RCC_PLL1DIVR_PLL1P_Pos | (2u - 1) << RCC_PLL1DIVR_PLL1Q_Pos | (2u - 1) << RCC_PLL1DIVR_PLL1R_Pos
-		| (HCLK_FREQ / 2000000u - 1) << RCC_PLL1DIVR_PLL1N_Pos;
-	RCC->PLL1CFGR = RCC_PLL1CFGR_PLL1SRC_Msk | (4u - 1) << RCC_PLL1CFGR_PLL1M_Pos | RCC_PLL1CFGR_PLL1REN;	// MSIS, no div
-	RCC->CR |= RCC_CR_PLL1ON;
-
-	//RCC->CCIPR2 = 0u << RCC_CCIPR2_OTGHSSEL_Pos;	// HSI as USB HS clock - U59x and above
-#endif
 
 	// wait for correct core voltage
-	while (~PWR->VOSR & (PWR_VOSR_VOSRDY | PWR_VOSR_BOOSTRDY)) ;
-	// wait for PLL ready
-	while (~RCC->CR & RCC_CR_PLL1RDY) ;
+	while (~PWR->VOSR & (PWR_VOSR_R1RDY | PWR_VOSR_BOOSTRDY)) ;
+
 	FLASH->ACR = FLASH_ACR_PRFTEN | ((HCLK_FREQ - 1u) / FLASH_WS_FREQ_STEP) << FLASH_ACR_LATENCY_Pos;
 
-	while (ICACHE->SR & ICACHE_SR_BUSYF) ;
+	while (~RCC->CR & RCC_CR_MSISRDY) ;
+	RCC->ICSCR1 |= RCC_ICSCR1_MSIRGSEL;
+	RCC->ICSCR1 &= ~(RCC_ICSCR1_MSISSEL | RCC_ICSCR1_MSISDIV);	// MSIRC0/1
+	while (~RCC->CR & RCC_CR_MSISRDY) ;
+
 	ICACHE->CR |= ICACHE_CR_EN;
-	// switch to PLL
-	RCC->CFGR1 = RCC_CFGR1_SW_PLL1;
-	// select USB clock
-	//RCC->CCIPR1 = 0 << RCC_CCIPR1_ICLKSEL_Pos;	// HSI48 as USB clock - default after reset
-	//RCC->CCIPR2 = 1u << RCC_CCIPR2_OTGHSSEL_Pos;	// PLL1P as USB HS clock - U59x and above
 }
 
 /*
@@ -108,52 +91,9 @@ static inline void ClockSetup(void)
  */
 static inline void USBhwSetup(void)
 {
-	RCC->AHB3ENR |= RCC_AHB3ENR_PWREN;
-	PWR->SVMCR |= PWR_SVMCR_IO2SV | PWR_SVMCR_USV;	// USB and IO2 power on
-#ifdef RCC_APB2ENR_USBEN	// U535/U545 USB device
-	RCC->APB2ENR |= RCC_APB2ENR_USBEN;
-#else
-
-#if defined(RCC_AHB2ENR1_OTGHSPHYEN)	// U59x
-	RCC->APB3ENR |= RCC_APB3ENR_SYSCFGEN;
-	RCC->AHB2ENR1 |= RCC_AHB2ENR1_GPIOAEN | RCC_AHB2ENR1_OTGEN | RCC_AHB2ENR1_OTGHSPHYEN;
-	SYSCFG->OTGHSPHYCR = 3u << SYSCFG_OTGHSPHYCR_CLKSEL_Pos | SYSCFG_OTGHSPHYCR_PDCTRL;
-	SYSCFG->OTGHSPHYTUNER2 = (SYSCFG->OTGHSPHYTUNER2 & ~(SYSCFG_OTGHSPHYTUNER2_SQRXxxx | SYSCFG_OTGHSPHYTUNER2_COMPxxx))
-			| 2u << SYSCFG_OTGHSPHYTUNER2_COMPxx_Pos;
-	SYSCFG->OTGHSPHYCR = 3u << SYSCFG_OTGHSPHYCR_CLKSEL_Pos | SYSCFG_OTGHSPHYCR_PDCTRL | SYSCFG_OTGHSPHYCR_EN;
-#else // U575/585 USB OTG
-	RCC->AHB2ENR1 |= RCC_AHB2ENR1_GPIOAEN | RCC_AHB2ENR1_OTGEN;
-#endif
-
-	AFRF(GPIOA, 11) = AFN_USB;
-	AFRF(GPIOA, 12) = AFN_USB;
-	BF2F(GPIOA->OSPEEDR, 11) = GPIO_OSPEEDR_VHI;
-	BF2F(GPIOA->OSPEEDR, 12) = GPIO_OSPEEDR_VHI;
-	BF2F(GPIOA->MODER, 11) = GPIO_MODER_AF;
-	BF2F(GPIOA->MODER, 12) = GPIO_MODER_AF;
-#endif
-
-}
-
-// board LED/Button setup needed for HID demo
-static inline void LED_Btn_Setup(void)
-{
-#ifdef LED_PORT
-	RCC->AHB2ENR1 |= RCC_IOENR_GPIOEN(LED_PORT);
-	BF2F(LED_PORT->MODER, LED_BIT) = GPIO_MODER_OUT;
-#endif
-#ifdef BTN_PORT
-	RCC->AHB2ENR1 |= RCC_IOENR_GPIOEN(BTN_PORT);
-	BF2F(BTN_PORT->PUPDR, BTN_BIT) = GPIO_PUPDR_PD;
-	BF2F(BTN_PORT->MODER, BTN_BIT) = GPIO_MODER_IN;
-#endif
-}
-
-static inline void hwLED_Set(bool on)
-{
-#ifdef LED_PORT
-	LED_PORT->BSRR = on ? LED_MSK : LED_MSK << 16;
-#endif
+	RCC->AHB1ENR2 |= RCC_AHB1ENR2_PWREN;
+	PWR->SVMCR |= PWR_SVMCR_IO2SV | PWR_SVMCR_USV | PWR_SVMCR_UVMEN;	// USB and IO2 power on
+	RCC->APB2ENR |= RCC_APB2ENR_USB1EN;
 }
 
 #endif /* INC_MCU_HW_H_ */

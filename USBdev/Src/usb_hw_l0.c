@@ -15,25 +15,9 @@
  * You should have received a copy of the GNU General Public License 
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#if defined(STM32F042x6) || defined(STM32F072xB) || defined(STM32L073xx) \
-	|| defined(STM32L452xx) || defined(STM32L552xx) \
-	|| defined(STM32G474xx)
+#include "mcutype.h"
 
-#if defined(STM32F042x6) || defined(STM32F072xB)
-#include "stm32f0xx.h"
-#endif
-#ifdef STM32L073xx
-#include "stm32l0xx.h"
-#endif
-#ifdef STM32L452xx
-#include "stm32l4xx.h"
-#endif
-#ifdef STM32L552xx
-#include "stm32l5xx.h"
-#endif
-#ifdef STM32G474xx
-#include "stm32g4xx.h"
-#endif
+#ifdef USB_DEV_L0
 
 #include <string.h>
 #include "usb_dev_config.h"

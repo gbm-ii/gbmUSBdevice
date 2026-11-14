@@ -16,11 +16,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#if defined(STM32F10X_MD) || defined(STM32F103xB)
+#include "mcutype.h"
+#if defined(USB_DEV_F1)
 
 #include <string.h>
-#include "stm32f1xx.h"
-#include "usb_dev_config.h"
+//#include "usb_dev_config.h"
 #include "usb_desc_def.h"
 #include "usb_dev.h"
 #include "usb_hw_if.h"

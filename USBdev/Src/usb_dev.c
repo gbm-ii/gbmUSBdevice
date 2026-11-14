@@ -16,7 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <usb_dev_config.h>
+#include "usb_dev_config.h"
 #include "usb_std_def.h"
 #include "usb_desc_def.h"
 #include "usb_dev.h"

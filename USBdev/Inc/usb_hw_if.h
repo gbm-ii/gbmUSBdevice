@@ -7,7 +7,7 @@
 #ifndef USB_HW_IF_H_
 #define USB_HW_IF_H_
 
-#include "usb_hw.h"
+//#include "usb_hw.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
