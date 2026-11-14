@@ -21,8 +21,7 @@ Composite device configuration may be changed by editing `usb_dev_config.h` file
 
 ## Quick start
 
-Out-of-the-box demos are currently available for STM32F0x2, F103, F401, G0B1, L4, H503/523/533, U083, U535/545, U575, C071, C5. The demos uses pure event-driven approach with software-generated interrupts.
-Example code for other MCUs as well as more conventional, event loop-based version of demo will be added soon.
+Out-of-the-box demo is available for all supported MCUs. The demo uses pure event-driven approach with software-generated interrupts.
 By default, the example code creates a composite device made of generic text printer and two VCPs (only one VCP on F4 series due to only 3 application endpoints available in its USB OTG FS peripheral).
 The composite device demo compiles to little over 5 kB with `-Os` option.
 To use single VCOM (non-composite) demo, define the SIMPLE_CDC symbol in C Compiler preprocessor settings and set CDC_CHANNELS in 'usb_dev_config.h' to 1.
@@ -80,7 +79,8 @@ If enabled in `usb_dev_config.h`, Generic Text Printer device is created, which 
 
 ### HID example
 
-The HID example implements a keyboard device using one button/key and one LED. The hardware connection must be visible in the main file.
+The HID example implements a keyboard device using one button/key and one LED. The hardware connection must be visible in the main file,
+which may be achieved by creating `board.h` file and including the board resource definition (like `boards/stm32nucleo64.h`) in it.
 The example code for selected STM32 models uses Nucleo, F103 BluePill(Plus) or F4x1 BlackPill board button and LED. Once connected to a PC, the LED serves as ScrollLock indicator
 and pressing a button causes the asterisk character to be input to the host computer. HID keyboard demo was tested on U0, U545, H5x3 and F401.
 

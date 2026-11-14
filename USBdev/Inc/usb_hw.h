@@ -75,11 +75,6 @@ extern const struct USBhw_services_ g0_fs_services;
 #define USB_PMA_OFFSET ((USB_DRD_PMAADDR) - (USB_DRD_BASE))
 #endif
 
-#ifndef USB_IRQn
-#define USB_IRQn	USB_DRD_FS_IRQn
-#define USB_IRQHandler	USB_DRD_FS_IRQHandler
-#endif
-
 #elif defined(USB_OTG_FS_L4)
 
 // USB OTG
