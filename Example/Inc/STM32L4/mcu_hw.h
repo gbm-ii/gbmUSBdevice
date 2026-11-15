@@ -24,7 +24,6 @@
 
 #if (__STDC_VERSION__ >= 202000L) && __has_include("board.h")
 	#include "board.h"
-	// If board.h is present, HSE_VALUE and RCC_CR_HSESEL must be defined in board.h.
 #endif
 
 /*
@@ -55,8 +54,7 @@
   \return      none
   \note		The main clock source is 4 MHz MSI.
 			For L47x, MSI is synchronized to LSE andUSB clock is generated form it.
-			For others (STM32L4x2, L49x..L4Sx), USB clock is obtained from HSI48 synchronized to USB SOF.
-			synchronized to LSE. The USB clock is set to HSI48 synchronized to USB SOF.
+			For others (STM32L4x2, L49x..L4Sx), USB clock is set to HSI48 synchronized to USB SOF.
  */
 static inline void ClockSetup(void)
 {
@@ -67,6 +65,8 @@ static inline void ClockSetup(void)
 	// set Flash access time
 	FLASH->ACR = FLASH_ACR_DCEN | FLASH_ACR_ICEN | FLASH_ACR_PRFTEN
 		| ((HCLK_FREQ - 1u) / FLASH_WS_FREQ_STEP) << FLASH_ACR_LATENCY_Pos;
+
+	// default PWR setting is voltage range 1 -> ok for 80 MHz operation
 
 #if HCLK_FREQ > 80000000u
 	RCC->APB1ENR1 |= RCC_APB1ENR1_PWREN;
@@ -128,7 +128,17 @@ static inline void USBhwSetup(void)
 	BF2F(GPIOA->MODER, 11) = GPIO_MODER_AF;
 	BF2F(GPIOA->MODER, 12) = GPIO_MODER_AF;
 #else
-#warning STM32L4x2 not supported yet
+	RCC->APB1ENR1 |= RCC_APB1ENR1_USBFSEN | RCC_APB1ENR1_PWREN;
+	PWR->CR2 |= PWR_CR2_USV;	// enable VddUSB
+#if 0	// port setup not needed for USB device
+	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
+	AFRF(GPIOA, 11) = AFN_USB;
+	AFRF(GPIOA, 12) = AFN_USB;
+	BF2F(GPIOA->OSPEEDR, 11) = GPIO_OSPEEDR_HI;
+	BF2F(GPIOA->OSPEEDR, 12) = GPIO_OSPEEDR_HI;
+	BF2F(GPIOA->MODER, 11) = GPIO_MODER_AF;
+	BF2F(GPIOA->MODER, 12) = GPIO_MODER_AF;
+#endif
 #endif
 }
 

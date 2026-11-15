@@ -20,11 +20,16 @@
 #include "stm32l0xx.h"
 #define USB_DEV_L0
 
+#elif defined(STM32L412xx) || defined(STM32L422xx) || defined(STM32L432xx) || defined(STM32L433xx) \
+	|| defined(STM32L442xx) || defined(STM32L443xx) || defined(STM32L452xx) || defined(STM32L462xx)
+#include "stm32l4xx.h"
+#define USB_DEV_L0
+
 #elif defined(STM32L552xx)
 #include "stm32l5xx.h"
 #define USB_DEV_L0
 
-#elif defined(STM32G0B1xx)
+#elif defined(STM32G0B1xx) || defined(STM32G0C1xx)
 #include "stm32g0xx.h"
 #define USB_DRD_G0
 
@@ -40,7 +45,8 @@
 #include "stm32c0xx.h"
 #define USB_DRD_G0
 
-#elif defined(STM32H503xx) || defined(STM32H523xx) || defined(STM32H533xx) || defined(STM32H563xx)
+#elif defined(STM32H503xx) || defined(STM32H523xx) || defined(STM32H533xx) || defined(STM32H543xx) || defined(STM32H553xx)
+	|| defined(STM32H562xx) || defined(STM32H563xx) || defined(STM32H573xx)
 #include "stm32h5xx.h"
 #define USB_DRD_G0
 
@@ -59,11 +65,12 @@
 #include "stm32u3xx.h"
 #define USB_DRD_G0
 
-#elif defined(STM32F401xC)
+#elif defined(STM32F401xC) || defined(STM32F411xC)
 #include "stm32f4xx.h"
 #define USB_OTG_FS_L4
 
-#elif defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4P5xx) || defined(STM32L4R5xx)
+#elif defined(STM32L475xx) || defined(STM32L476xx) || defined(STM32L496xx) || defined(STM32L4A6xx) \
+	|| defined(STM32L4P5xx) || defined(STM32L4R5xx) || defined(STM32L4S5xx)
 #include "stm32l4xx.h"
 #define USB_OTG_FS_L4
 
@@ -71,12 +78,8 @@
 #include "stm32u5xx.h"
 #define USB_OTG_FS_L4
 
-#if defined(STM32U5A5xx)
-#include "stm32u5xx.h"
-#endif
-
 #else
-#error Add your MCU support mcutype.h
+#error Add your MCU support!
 #endif
 
 #endif

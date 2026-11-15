@@ -7,7 +7,7 @@
 #ifndef USB_HW_IF_H_
 #define USB_HW_IF_H_
 
-//#include "usb_hw.h"
+enum usb_epstate_ {USB_EPSTATE_DISABLE, USB_EPSTATE_STALL, USB_EPSTATE_NAK, USB_EPSTATE_VALID};
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
@@ -32,10 +32,12 @@
 //void USBhw_StartTx(const struct usbdevice_ *usbd, uint8_t epn);
 
 struct USBhw_services_ {
+	// called by usb_app.c
 	void (*IRQHandler)(const struct usbdevice_ *usbd);
 
 	void (*Init)(const struct usbdevice_ *usbd);
 	void (*DeInit)(const struct usbdevice_ *usbd);
+	// called by usb_dev.c
 	uint16_t (*GetInEPSize)(const struct usbdevice_ *usbd, uint8_t epn);
 
 	void (*SetCfg)(const struct usbdevice_ *usbd);

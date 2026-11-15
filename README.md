@@ -3,13 +3,14 @@
 
 A compact, simple, HAL-free USB device stack for easy creation of composite devices with STM32 MCUs.
 
-Supported MCUs: STM32: C071, C5, F0x2, F103, F4 (OTG FS only), G0B1, H5x3, L0, L4, L5, U0x3, U3, U535..585.
+Supported MCUs: STM32: C071, C5, F0x2, F103, F4 (OTG FS only), G0B1/C1, H5, L0, L4, L5, U0x3, U3, U535..585.
+
 Planned support: STM32G5, STM32U59x and above, STM32H5E, CH32X03x.
 
 Supported USB classes: CDC ACM (VCP), Printer, HID, MSC BOT SCSI.
 Planned: DFU?.
 
-The code is being rewritten to use some useful C23 features (like __has_include()). To use C23 with GCC 14 in STM32CubeIDE, set the C dialect to default and specify -std=c23 option manually.
+The code is being rewritten to use some useful C23 features (like `__has_include()`). To use C23 with GCC 14 in STM32CubeIDE, set the C dialect to default and specify -std=c23 option manually.
 
 To see the demo in action:
 
@@ -17,7 +18,9 @@ To see the demo in action:
 - Open the terminal sessions for the VCPs (TeraTerm seems to be good choice for Windows); once connected, the demo displays prompt with the VCOM logical number in a terminal window.
 - The text typed in a terminal window is echoed. The text printed to the printer is displayed in VCOM0 terminal window.
 
-Composite device configuration may be changed by editing `usb_dev_config.h` file.
+Composite device configuration may be changed by editing `usb_dev_config.h` file. It might be convenient to keep a local version
+of that file in every project, placed in a project local folder preceeding the `gbmUSBdevice/Inc` in the include path.
+The source tree is designed to be shared among multiple projects to avoid keeping multiple project-specific instances.
 
 ## Quick start
 
@@ -30,7 +33,7 @@ The F4 clock setup code supports automatic detection of HSE configuration and fr
 Te see gbmUSBdevice in action:
 - Download or clone the https://github.com/gbm-ii/gbmUSBdevice and https://github.com/gbm-ii/STM32_Inc repositories to your computer.
 - Create the basic project for your MCU using CubeMX or CubeMX2. Do not change any settings; just generate code for the default configuration.
-- Remove or rename the `main()` function in CubeMX-generated `main.c` file - `main()` from gbmUSBdevice example will be used instead of it. Alternatively, you may set *Do not generate the main()* option in CubeMX.
+- Remove or rename the `main()` function found in CubeMX-generated `main.c` file - `main()` from gbmUSBdevice example will be used instead of it. Alternatively, you may set *Do not generate the main()* option in CubeMX.
 - Configure and compile the project as described below for STM32CubeIDE or VS Code.
 
 ### STM32CubeIDE project
@@ -41,12 +44,12 @@ To compile and run the example using STM32CubeIDE:
 - Copy or link the `gbmUSBdevice` folder to include it in your project. Set the folder as source folder
  (right click on the folder name, *Properties - C/C++ Build* - uncheck *Exclude resource from build*).
 - Copy or link the `STM32_Inc` folder to your project.
-- Add the `gbmUSBdevice/Example/Inc/<MCU_series>`, `gbmUSBdevice/USBdev/Inc` and `STM32_Inc` folders to the inlcude path; they should appear in the include path in exactly that order.
+- Add the `gbmUSBdevice/Example/Inc/<MCU_series>`, `gbmUSBdevice/USBdev/Inc` and `STM32_Inc` folders to the include path; they should appear in the include path in exactly that order.
 
 ### CMake-based project
 
-To compile and run the example using VS Code or any other CMake-drive environment, add the following lines to the main CMakeLists.txt, adjusting the values in set() commands below.
-COMPONENTDIR is the folder containing folders STM32_Inc and gbmUSBdevice
+To compile and run the example using VS Code or any other CMake-drive environment, add the following lines to the main `CMakeLists.txt`, adjusting the values in set() commands below.
+`COMPONENTDIR` variable should be set to the path to the directory containing `STM32_Inc` and `gbmUSBdevice`.
 
 ```
 set(MCUFAMILY STM32C5)
@@ -70,8 +73,8 @@ Before calling `USBapp_Init()`:
 
 ### CDC ACM (VCP) implementation
  
-The Virtual COM port is meant to be compatible with CDC 1.2 ACM (no AT commands) specification, supporting the Set_Line_Coding, Set_Control_Line_State, Get_Line_Coding requests
-and Serial_State notification.
+The Virtual COM port is meant to be compatible with CDC 1.2 ACM (no AT commands) specification, supporting the *Set_Line_Coding*,
+*Set_Control_Line_State*, *Get_Line_Coding requests* and *Serial_State* notification.
 
 ### Printer
 
