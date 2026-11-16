@@ -25,6 +25,7 @@
 #include "usb_desc_def.h"
 #include "usb_dev.h"
 #include "usb_hw_if.h"
+#include "usb_log.h"
 
 #ifdef UARTMON
 #ifdef STM32H503xx
@@ -292,7 +293,6 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 		SetEPRState(usbd, i, USB_EP_RX_STRX | USB_EP_TX_STTX | USB_EP_DTOG_TX | USB_EP_DTOG_RX, epstate);
 	}
     reset_in_endpoints(usbd);
-    EVTMON('C');
 }
 
 // disable app endpoints on set configuration 0 request
@@ -419,6 +419,7 @@ void USBhw_IRQHandler(const struct usbdevice_ *usbd)
                 if (usbd->Resume_Handler)
                 	usbd->Resume_Handler();
                 EVTMON('W');
+                USBlog_storeevt(UE_RESUME);
             }
         }
         usb->ISTR = ~USB_ISTR_WKUP;
@@ -430,6 +431,7 @@ void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         if (usbd->Reset_Handler)
         	usbd->Reset_Handler();
         EVTMON('R');
+        USBlog_storeevt(UE_RESET);
         return;
     }
     if (istr & USB_ISTR_CTR)	// EP traffic interrupt
@@ -484,6 +486,8 @@ void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         if (usbd->Suspend_Handler)
         	usbd->Suspend_Handler();
         EVTMON('S');
+        USBlog_storeevt(UE_SUSPEND);
+
         return;
     }
     if (istr & USB_ISTR_SOF)

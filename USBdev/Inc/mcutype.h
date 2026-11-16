@@ -45,7 +45,8 @@
 #include "stm32c0xx.h"
 #define USB_DRD_G0
 
-#elif defined(STM32H503xx) || defined(STM32H523xx) || defined(STM32H533xx) || defined(STM32H543xx) || defined(STM32H553xx)
+#elif defined(STM32H503xx) || defined(STM32H523xx) || defined(STM32H533xx) \
+	|| defined(STM32H543xx) || defined(STM32H553xx) \
 	|| defined(STM32H562xx) || defined(STM32H563xx) || defined(STM32H573xx)
 #include "stm32h5xx.h"
 #define USB_DRD_G0

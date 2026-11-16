@@ -61,7 +61,7 @@ void USBdev_SendStatus(const struct usbdevice_ *usbd, const uint8_t *data, uint1
 {
 	usbd->devdata->ep0state = USBD_EP0_STATUS_IN;
 	USBdev_SendData(usbd, 0, data, length, zlp);
-	USBlog_storeresp(RSP_STATUS, length);
+	USBlog_storeresp(data ? RSP_STATUS : RSP_OK, length);
 }
 
 void USBdev_SendStatusOK(const struct usbdevice_ *usbd)
@@ -258,12 +258,12 @@ void USBdev_InEPHandler(const struct usbdevice_ *usbd, uint8_t epn)
 	{
 		if (usbd->devdata->setaddress)
 		{
-			USBlog_recordevt(0x40);
+			//USBlog_recordevt(0x40);
 			usbd->devdata->setaddress = 0;
 			usbd->devdata->devstate = USBD_STATE_ADDRESSED;
 		}
 
-		USBlog_recordevt(0x80);
+		//USBlog_recordevt(0x80);
 	}
 }
 

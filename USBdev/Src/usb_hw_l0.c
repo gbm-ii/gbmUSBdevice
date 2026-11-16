@@ -24,6 +24,7 @@
 #include "usb_desc_def.h"
 #include "usb_dev.h"
 #include "usb_hw_if.h"
+#include "usb_log.h"
 
 // verified on STM32F072, L552
 // USB registers are 16-bit and may be accessed as 16- or 32-bit
@@ -356,6 +357,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
                 // callback...
                 if (usbd->Resume_Handler)
                 	usbd->Resume_Handler();
+                USBlog_storeevt(UE_RESUME);
             }
         }
         usb->ISTR = ~USB_ISTR_WKUP;
@@ -366,6 +368,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         USBhw_Reset(usbd);
         if (usbd->Reset_Handler)
         	usbd->Reset_Handler();
+        USBlog_storeevt(UE_RESET);
         return;
     }
     if (istr & USB_ISTR_CTR)	// EP traffic interrupt
@@ -414,6 +417,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         // callback...
         if (usbd->Suspend_Handler)
         	usbd->Suspend_Handler();
+        USBlog_storeevt(UE_SUSPEND);
        return;
     }
     if (istr & USB_ISTR_SOF)

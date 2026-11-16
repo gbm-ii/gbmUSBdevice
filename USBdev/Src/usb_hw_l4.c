@@ -26,6 +26,7 @@
 #include "usb_desc_def.h"
 #include "usb_dev.h"
 #include "usb_hw_if.h"
+#include "usb_log.h"
 
 #if defined(STM32L4) || defined(STM32U5)
 #define NEW_OTG
@@ -520,6 +521,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         USBhw_Reset(usbd);
         if (usbd->Reset_Handler)
         	usbd->Reset_Handler();
+        USBlog_storeevt(UE_RESET);
     	usbg->GINTSTS = USB_OTG_GINTSTS_USBRST;
     }
     if (gintsts & USB_OTG_GINTSTS_ENUMDNE) // Reset
@@ -538,6 +540,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         reset_in_endpoints(usbd);
         if (usbd->Suspend_Handler)
         	usbd->Suspend_Handler();
+        USBlog_storeevt(UE_SUSPEND);
     	usbg->GINTSTS = USB_OTG_GINTSTS_USBSUSP;
     }
     if (gintsts & USB_OTG_GINTSTS_WKUINT)
@@ -545,6 +548,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
     	usbg->GINTSTS = USB_OTG_GINTSTS_WKUINT;
         if (usbd->Resume_Handler)
         	usbd->Resume_Handler();
+        USBlog_storeevt(UE_RESUME);
     }
     if (gintsts & USB_OTG_GINTSTS_RXFLVL)
     {

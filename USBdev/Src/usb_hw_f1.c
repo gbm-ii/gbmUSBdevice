@@ -24,6 +24,7 @@
 #include "usb_desc_def.h"
 #include "usb_dev.h"
 #include "usb_hw_if.h"
+#include "usb_log.h"
 
 // PMA size: F103: 512 B
 // 16- or 32-bit reg access, 32-bit PMA access
@@ -330,6 +331,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
 			// call the resume routine here
 			if (usbd->Resume_Handler)
 				usbd->Resume_Handler();
+	        USBlog_storeevt(UE_RESUME);
     	}
         usb->ISTR.v = (uint16_t)~USB_ISTR_WKUP;
     }
@@ -340,6 +342,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         USBhw_Reset(usbd);
         if (usbd->Reset_Handler)
         	usbd->Reset_Handler();
+        USBlog_storeevt(UE_RESET);
         return;
     }
 
@@ -391,6 +394,7 @@ static void USBhw_IRQHandler(const struct usbdevice_ *usbd)
         reset_in_endpoints(usbd);
         if (usbd->Suspend_Handler)
         	usbd->Suspend_Handler();
+        USBlog_storeevt(UE_SUSPEND);
         return;
     }
 

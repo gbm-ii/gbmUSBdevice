@@ -18,16 +18,33 @@
 
 #include <stddef.h>
 #include "usb_std_def.h"
+#include "usb_dev.h"
 
-//#define USBLOG
-#ifdef USBLOG
+#ifdef USBLOG	// define via compiler option
 // Log ===================================================================
-enum stp_rsp_ {RSP_NONE, RSP_ERR, RSP_OK, RSP_STATUS};
+enum stp_rsp_ : uint8_t {RSP_NONE, RSP_ERR, RSP_OK, RSP_STATUS};
+
+enum usbevt_ : uint8_t {UE_NONE, UE_RESET, UE_SETCFG, UE_SUSPEND, UE_RESUME};
+
+struct logentry_ {
+	uint32_t msec;
+	USB_SetupPacket pkt;
+	enum stp_rsp_ resp;
+	uint8_t resplen;
+	uint8_t evt, xx;
+};
+
+extern struct logentry_ usblog[USBLOG];
+extern uint16_t logidx;
+extern uint32_t magic;
+
+void USBlog_storeevt(uint8_t evt);
 void USBlog_storerq(USB_SetupPacket *pkt);
 void USBlog_storeresp(enum stp_rsp_ resp, uint8_t resplen);
-size_t USBlog_get(char *s);
-void USBlog_recordevt(uint8_t ef);
+//void USBlog_recordevt(uint8_t ef);
+
 #else
+#define USBlog_storeevt(p)
 #define USBlog_storerq(p)
 #define USBlog_storeresp(r,l)
 #define USBlog_recordevt(e)
