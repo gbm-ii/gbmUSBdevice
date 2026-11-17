@@ -43,7 +43,7 @@ static inline void ClockSetup(void)
     RCC->APBENR1 |= RCC_APBENR1_CRSEN;
     CRS->CR |= CRS_CR_AUTOTRIMEN | CRS_CR_CEN;	// sync HSI48 to USB SOF
 
-	while (~RCC->CR & RCC_CR_HSIUSB48RDY);
+	while (~RCC->CR & RCC_CR_HSIUSB48RDY) ;
 	RCC->CFGR = RCC_CFGR_SW_HSIUSB;
 }
 

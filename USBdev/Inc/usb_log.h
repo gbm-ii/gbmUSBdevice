@@ -31,7 +31,7 @@ struct logentry_ {
 	USB_SetupPacket pkt;
 	enum stp_rsp_ resp;
 	uint8_t resplen;
-	uint8_t evt, xx;
+	uint8_t evt, classid;
 };
 
 extern struct logentry_ usblog[USBLOG];
@@ -41,11 +41,14 @@ extern uint32_t magic;
 void USBlog_storeevt(uint8_t evt);
 void USBlog_storerq(USB_SetupPacket *pkt);
 void USBlog_storeresp(enum stp_rsp_ resp, uint8_t resplen);
+void USBlog_storeclassid(uint8_t classid);
+
 //void USBlog_recordevt(uint8_t ef);
 
 #else
 #define USBlog_storeevt(p)
 #define USBlog_storerq(p)
 #define USBlog_storeresp(r,l)
+#define USBlog_storeclassid(p)
 #define USBlog_recordevt(e)
 #endif

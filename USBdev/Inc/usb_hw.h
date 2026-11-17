@@ -40,6 +40,9 @@ extern const struct USBhw_services_ l0_fs_services;
 #ifdef STM32L5
 #define USB_IRQn	USB_FS_IRQn
 #define USB_IRQHandler	USB_FS_IRQHandler
+#elif defined(STM32G4)
+#define USB_IRQn	USB_LP_IRQn
+#define USB_IRQHandler	USB_LP_IRQHandler
 #endif
 
 #elif defined(USB_DRD_G0)

@@ -3,14 +3,15 @@
 
 A compact, simple, HAL-free USB device stack for easy creation of composite devices with STM32 MCUs.
 
-Supported MCUs: STM32: C071, C5, F0x2, F103, F4 (OTG FS only), G0B1/C1, H5, L0, L4, L5, U0x3, U3, U535..585.
+Supported MCUs: STM32: C071, C5, F0x2, F103, F4 (OTG FS only), G0B1/C1, G4, H5, L0, L4, L5, U0x3, U3, U535..585.
 
 Planned support: STM32G5, STM32U59x and above, STM32H5E, CH32X03x.
 
 Supported USB classes: CDC ACM (VCP), Printer, HID, MSC BOT SCSI.
 Planned: DFU?.
 
-The code is being rewritten to use some useful C23 features (like `__has_include()`). To use C23 with GCC 14 in STM32CubeIDE, set the C dialect to default and specify -std=c23 option manually.
+The code is being rewritten to use some useful C23 features (like `__has_include()`). STM32CubeIDE version 2.3 provides native C23 support. To use C23 14 in STM32CubeIDE prior to version 2.3,
+set the C dialect to default and specify -std=c23 option manually.
 
 To see the demo in action:
 
@@ -85,7 +86,7 @@ If enabled in `usb_dev_config.h`, Generic Text Printer device is created, which 
 The HID example implements a keyboard device using one button/key and one LED. The hardware connection must be visible in the main file,
 which may be achieved by creating `board.h` file and including the board resource definition (like `boards/stm32nucleo64.h`) in it.
 The example code for selected STM32 models uses Nucleo, F103 BluePill(Plus) or F4x1 BlackPill board button and LED. Once connected to a PC, the LED serves as ScrollLock indicator
-and pressing a button causes the asterisk character to be input to the host computer. HID keyboard demo was tested on U0, U545, H5x3 and F401.
+and pressing a button causes the asterisk character to be input to the host computer. HID keyboard demo was tested on C0, U0, U545, H5x3 and F401.
 
 ### MSC BOT SCSI example
 

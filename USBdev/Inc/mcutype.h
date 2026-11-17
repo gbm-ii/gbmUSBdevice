@@ -29,12 +29,12 @@
 #include "stm32l5xx.h"
 #define USB_DEV_L0
 
-#elif defined(STM32G0B1xx) || defined(STM32G0C1xx)
-#include "stm32g0xx.h"
-#define USB_DRD_G0
-
 #elif defined(STM32G474xx)
 #include "stm32g4xx.h"
+#define USB_DEV_L0
+
+#elif defined(STM32G0B1xx) || defined(STM32G0C1xx)
+#include "stm32g0xx.h"
 #define USB_DRD_G0
 
 #elif defined(STM32U073xx) || defined(STM32U083xx)

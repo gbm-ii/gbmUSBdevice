@@ -35,6 +35,8 @@
 #include "usb_class_prn.h"
 #include "usb_class_hid.h"
 
+#include "usb_log.h"
+
 #if USBD_MSC
 #include "usb_class_msc_scsi.h"
 uint8_t msc_max_lun = 0;
@@ -80,6 +82,7 @@ void USBclass_HandleRequest(const struct usbdevice_ *usbd)
 		if (interface < USBD_NUM_INTERFACES)
 		{
 			uint8_t classid = usbd->cfg->ifassoc[interface].classid;
+			USBlog_storeclassid(classid);
 			switch (classid)
 			{
 #if xxUSBD_MSC

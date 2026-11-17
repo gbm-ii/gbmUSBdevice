@@ -56,7 +56,6 @@ static const struct cfgdesc_msc_ncdc_prn_ ConfigDesc;
 
 #define TX_TOUT	2u	// Tx timeout when buffer not empty in ms
 
-void LED_Toggle(void);	// in main.c
 //========================================================================
 // VCOM channel data
 
@@ -99,6 +98,7 @@ static bool HIDupdateKB(const struct usbdevice_ *usbd)
 	return change;
 }
 
+void LED_Set(bool on);
 __attribute__ ((weak)) void LED_Set(bool on)
 {
 	// redefine to control board's LED

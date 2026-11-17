@@ -67,6 +67,11 @@ void USBlog_storeresp(enum stp_rsp_ resp, uint8_t resplen)
 	usblog[logidx].resplen = resplen;
 }
 
+void USBlog_storeclassid(uint8_t classid)
+{
+	usblog[logidx].classid = classid;
+}
+
 void USBlog_recordevt(uint8_t ef)
 {
 	usblog[logidx].resp += ef;
