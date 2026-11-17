@@ -158,8 +158,8 @@ static uint16_t USBhw_ReadEPSize(const struct usbdevice_ *usbd, uint8_t epaddr)
 }
 #endif
 // USB EPR register bit masks
-#define USB_EPR_STATTX(a) ((a) << 4)
-#define USB_EPR_STATRX(a) ((a) << 12)
+#define USB_EPR_STATTXV(a) ((a) << USB_CHEP_TX_STTX_Pos)
+#define USB_EPR_STATRXV(a) ((a) << USB_CHEP_RX_STRX_Pos)
 // mask for config bits - use when toggling individual flags to avoid changing cfg bits
 // change to USB_CHEP_REG_MASK defined in std header
 #define USB_EPR_CFG	(USB_CHEP_ADDR | USB_EP_KIND | USB_CHEP_UTYPE | USB_CHEP_DEVADDR)
@@ -182,9 +182,9 @@ static void USBhw_ClrEPToggle(const struct usbdevice_ *usbd, uint8_t epaddr)
 static void USBhw_SetEPState(const struct usbdevice_ *usbd, uint8_t epaddr, enum usb_epstate_ state)
 {
 	if (epaddr & EP_IS_IN)	// In
-		SetEPRState(usbd, epaddr, USB_EP_TX_STTX, USB_EPR_STATTX(state));
+		SetEPRState(usbd, epaddr, USB_EP_TX_STTX, USB_EPR_STATTXV(state));
 	else	// Out
-		SetEPRState(usbd, epaddr, USB_EP_RX_STRX, USB_EPR_STATRX(state));
+		SetEPRState(usbd, epaddr, USB_EP_RX_STRX, USB_EPR_STATRXV(state));
 }
 
 static void USBhw_SetEPStall(const struct usbdevice_ *usbd, uint8_t epaddr)
@@ -203,9 +203,9 @@ static bool USBhw_IsEPStalled(const struct usbdevice_ *usbd, uint8_t epaddr)
 	USBh_TypeDef *usb = (USBh_TypeDef *)usbd->usb;
     volatile uint32_t *epr = &usb->EPR[epaddr & EPNUMMSK];
 	if (epaddr & EP_IS_IN)	// In
-		return (*epr & USB_CHEP_TX_STTX) == USB_EPR_STATTX(USB_EPSTATE_STALL);
+		return (*epr & USB_EP_TX_STTX) == USB_EPR_STATTXV(USB_EPSTATE_STALL);
 	else	// Out
-		return (*epr & USB_CHEP_RX_STRX) == USB_EPR_STATRX(USB_EPSTATE_STALL);
+		return (*epr & USB_EP_RX_STRX) == USB_EPR_STATRXV(USB_EPSTATE_STALL);
 }
 
 static void USBhw_EnableRx(const struct usbdevice_ *usbd, uint8_t epn)
@@ -251,7 +251,7 @@ static void USBhw_Reset(const struct usbdevice_ *usbd)
     usb->DADDR = USB_DADDR_EF;
     usb->CNTR = USB_CNTR_CTRM | USB_CNTR_RESETM | USB_CNTR_SUSPM | USB_CNTR_SOFM;
 	usb->EPR[0] = USB_EPR_EPTYPE(0);// | USB_EPR_STATRX(USB_EPSTATE_VALID) | USB_EPR_STATTX(USB_EPSTATE_NAK);
-    uint32_t epstate = USB_EPR_STATRX(USB_EPSTATE_NAK) | USB_EPR_STATTX(USB_EPSTATE_NAK);
+    uint32_t epstate = USB_EPR_STATRXV(USB_EPSTATE_NAK) | USB_EPR_STATTXV(USB_EPSTATE_NAK);
 	SetEPRState(usbd, 0, USB_EP_RX_STRX | USB_EP_TX_STTX | USB_EP_DTOG_TX | USB_EP_DTOG_RX, epstate);
     reset_in_endpoints(usbd);
 }
@@ -288,8 +288,8 @@ static void USBhw_SetCfg(const struct usbdevice_ *usbd)
 //			| USB_EPR_STATTX(USB_EPSTATE_NAK);
 
         epr[i] = i | USB_EPR_EPTYPE((ind ? ind->bmAttributes : 0) | (outd ? outd->bmAttributes : 0));
-        uint32_t epstate = (rxsize && usbd->outep[i].ptr ? USB_EPR_STATRX(USB_EPSTATE_VALID) : USB_EPR_STATRX(USB_EPSTATE_NAK))
-			| USB_EPR_STATTX(USB_EPSTATE_NAK);
+        uint32_t epstate = (rxsize && usbd->outep[i].ptr ? USB_EPR_STATRXV(USB_EPSTATE_VALID) : USB_EPR_STATRXV(USB_EPSTATE_NAK))
+			| USB_EPR_STATTXV(USB_EPSTATE_NAK);
 		SetEPRState(usbd, i, USB_EP_RX_STRX | USB_EP_TX_STTX | USB_EP_DTOG_TX | USB_EP_DTOG_RX, epstate);
 	}
     reset_in_endpoints(usbd);
@@ -303,7 +303,7 @@ static void USBhw_ResetCfg(const struct usbdevice_ *usbd)
     for (uint8_t i = 1; i < cfg->numeppairs; i++)
 	{
 		SetEPRState(usbd, i, USB_EP_RX_STRX | USB_EP_TX_STTX | USB_EP_DTOG_TX | USB_EP_DTOG_RX,
-			USB_EPR_STATRX(USB_EPSTATE_NAK) | USB_EPR_STATTX(USB_EPSTATE_NAK));
+			USB_EPR_STATRXV(USB_EPSTATE_NAK) | USB_EPR_STATTXV(USB_EPSTATE_NAK));
 	}
     reset_in_endpoints(usbd);
 }

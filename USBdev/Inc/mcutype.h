@@ -66,6 +66,10 @@
 #include "stm32u3xx.h"
 #define USB_DRD_G0
 
+#elif defined(STM32G564xx)
+#include "stm32g5xx.h"
+#define USB_DRD_G0
+
 #elif defined(STM32F401xC) || defined(STM32F411xC)
 #include "stm32f4xx.h"
 #define USB_OTG_FS_L4

@@ -56,9 +56,26 @@ extern const struct USBhw_services_ g0_fs_services;
 #define USB_IRQn	USB_UCPD1_2_IRQn
 #define USB_IRQHandler	USB_UCPD1_2_IRQHandler
 
-#elif defined(STM32C0) || defined(STM32C5) || defined(STM32H5) || defined(STM32U0)
+#elif defined(STM32C0) || defined(STM32C5) || defined(STM32G5) || defined(STM32H5) || defined(STM32U0)
 #define USB_IRQn	USB_DRD_FS_IRQn
 #define USB_IRQHandler	USB_DRD_FS_IRQHandler
+
+#ifdef STM32G5
+#define USB_CNTR_RESETM USB_CNTR_RST_DCONM
+#define USB_BCDR_DPPU USB_BCDR_DPPU_DPD
+#define USB_CHEP_ADDR USB_CHEP_EA
+#define	USB_EP_KIND	USB_CHEP_EPKIND
+#define USB_CHEP_ERRTX USB_CHEP_ERR_TX
+#define USB_CHEP_ERRRX USB_CHEP_ERR_RX
+#define USB_EP_DTOG_TX USB_EP_DTOGTX
+#define USB_EP_DTOG_RX USB_EP_DTOGRX
+#define USB_EP_TX_STTX USB_EP_STATTX
+#define USB_CHEP_TX_STTX_Pos USB_CHEP_STATTX_Pos
+//#define USB_CHEP_TX_STTX USB_EP_STATTX
+#define USB_EP_RX_STRX USB_EP_STATRX
+#define USB_CHEP_RX_STRX_Pos USB_CHEP_STATRX_Pos
+//#define USB_CHEP_RX_STRX USB_EP_STATRX
+#endif
 
 #elif defined(STM32U3)
 #define USB_IRQn	USB_FS_IRQn
