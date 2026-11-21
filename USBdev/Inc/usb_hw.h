@@ -29,7 +29,7 @@ extern const struct USBhw_services_ f1_fs_services;
 #endif
 
 #elif defined(USB_DEV_L0)
-// USB FS Device - F0, L0, L4x2, L5, ... - intermediate version
+// USB FS Device - F0, L0, L4x2, L5, G4, ... - intermediate version
 // 1024 B PMA, 16-bit access
 #define USB_NEPPAIRS	8u	// no. of endpoint pairs supported by hardware
 #define EPNUMMSK	7u
@@ -61,6 +61,7 @@ extern const struct USBhw_services_ g0_fs_services;
 #define USB_IRQHandler	USB_DRD_FS_IRQHandler
 
 #ifdef STM32G5
+// G5 headers introduce new bit names
 #define USB_CNTR_RESETM USB_CNTR_RST_DCONM
 #define USB_BCDR_DPPU USB_BCDR_DPPU_DPD
 #define USB_CHEP_ADDR USB_CHEP_EA
@@ -71,10 +72,8 @@ extern const struct USBhw_services_ g0_fs_services;
 #define USB_EP_DTOG_RX USB_EP_DTOGRX
 #define USB_EP_TX_STTX USB_EP_STATTX
 #define USB_CHEP_TX_STTX_Pos USB_CHEP_STATTX_Pos
-//#define USB_CHEP_TX_STTX USB_EP_STATTX
 #define USB_EP_RX_STRX USB_EP_STATRX
 #define USB_CHEP_RX_STRX_Pos USB_CHEP_STATRX_Pos
-//#define USB_CHEP_RX_STRX USB_EP_STATRX
 #endif
 
 #elif defined(STM32U3)
@@ -85,7 +84,7 @@ extern const struct USBhw_services_ g0_fs_services;
 
 #ifndef USB_BASE
 
-#ifdef USB_DRD_BASE_NS	// C5, H5, U5
+#ifdef USB_DRD_BASE_NS	// C5, H5, U5, G5
 #define USB_BASE	USB_DRD_BASE_NS
 #elif defined(USB_DRD_FS_BASE)
 #define USB_BASE	USB_DRD_FS_BASE
@@ -96,7 +95,7 @@ extern const struct USBhw_services_ g0_fs_services;
 #endif
 
 #ifndef USB_PMAADDR
-#ifdef USB_DRD_PMADDR_NS	// C5, H5, U5
+#ifdef USB_DRD_PMADDR_NS	// C5, H5, U5, G5
 #define USB_PMAADDR USB_DRD_PMAADDR_NS
 #elif defined(USB_DRD_PMAADDR)
 #define USB_PMAADDR USB_DRD_PMAADDR

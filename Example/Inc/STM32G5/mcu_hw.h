@@ -43,7 +43,11 @@
  * The routines below are supposed to be called only once, so they are defined as static inline
  * in a header file.
  */
-#define FLASH_WS_FREQ_STEP	42000000u	// @VOS0
+#define FLASH_WS_FREQ_STEP_VOS2	30000000u	// @VOS2
+#define FLASH_WS_FREQ_STEP_VOS1	34000000u	// @VOS1
+#define FLASH_WS_FREQ_STEP_VOS0	42000000u	// @VOS0
+
+#define FLASH_WS_FREQ_STEP	FLASH_WS_FREQ_STEP_VOS0
 /*
  * Minimal clock setup routine for STM32H5 (tested on Nucleo-H503)
  * The routine may be replaced by any user-writen or CubeMX-generated HAL routine providing stable 48 MHz clock to USB peripheral.
@@ -53,7 +57,7 @@ static inline void ClockSetup(void)
 {
 	// initial H5 clock after reset is HSI divided by 2 -> 32 MHz
 	// BUT ST-supplied SystemInit resets the divisor in RCC->CR HSIDIV field, so the clock freq is 64 MHz!
-	PWR->VOSCR = PWR_VOSCR_VOS;	// raise core voltage; 3 -> scale 0, for highest operating frequency
+	PWR->VOSCR = PWR_VOSCR_VOS;	// raise core voltage; 3 -> scale 0, for highest operating frequency (default is range 2)
 	// osc and PLL setup
 	// PLL input clock 2 MHz
 	// SYSCLK from PLL1P, N = 240, P = 2; USB could be obtained from PLL1Q
@@ -79,13 +83,14 @@ static inline void ClockSetup(void)
 	// wait for PLL ready
 	while (~RCC->CR & RCC_CR_PLL1RDY) ;
 	// no. of wait states = freq / 42 MHz; WRHIGHFREQ = freq / 84 MHz ? (See STM32H7B0 RM.)
-	FLASH->ACR = FLASH_ACR_PRFTEN | (HCLK_FREQ / FLASH_WS_FREQ_STEP / 2) << FLASH_ACR_WRHIGHFREQ_Pos | (HCLK_FREQ / FLASH_WS_FREQ_STEP) << FLASH_ACR_LATENCY_Pos;
+	FLASH->ACR = FLASH_ACR_PRFTEN | ((HCLK_FREQ - 1u) / FLASH_WS_FREQ_STEP / 2) << FLASH_ACR_WRHIGHFREQ_Pos | ((HCLK_FREQ - 1u) / FLASH_WS_FREQ_STEP) << FLASH_ACR_LATENCY_Pos;
 	// enable instruction cache
 	while (ICACHE->SR & ICACHE_SR_BUSYF) ;
 	ICACHE->CR |= ICACHE_CR_EN;
 
+	while (~PWR->VOSSR & PWR_VOSSR_ACTVOSRDY) ;
 	// switch to PLL
-	//RCC->CFGR1 = RCC_CFGR1_SYSSW_PLL1;
+	RCC->CFGR1 = RCC_CFGR1_SYSSW_PLL1;
 	// HSI48 as USB clock (default after reset)
 	//RCC->CCIPR4 = 1u << RCC_CCIPR4_USBSEL_Pos;	// PLL1Q as USB clock
 }
